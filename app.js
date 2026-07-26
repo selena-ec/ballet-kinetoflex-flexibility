@@ -8,7 +8,7 @@ const CLOUD_TOKEN = CLOUD_CONFIG.SYNC_TOKEN || "";
 const CLOUD_ENABLED = Boolean(CLOUD_URL);
 const SAVE_DEBOUNCE_MS = 700;
 
-const weeklyTemplate = [
+const legacyWeeklyTemplate = [
   dayPlan("Mon", [sessionDay("Hip Mobility", 1)]),
   dayPlan("Tue", [sessionDay("Front Split", 1)]),
   dayPlan("Wed", [sessionDay("Middle Split", 1)]),
@@ -16,6 +16,16 @@ const weeklyTemplate = [
   dayPlan("Fri", [sessionDay("Hip Mobility", 2), sessionDay("Front Split", 2)]),
   dayPlan("Sat", [sessionDay("Middle Split", 2)]),
   dayPlan("Sun", [sessionDay("Pancake", 2)]),
+];
+
+const weeklyTemplate = [
+  dayPlan("Sun", [sessionDay("Hip Mobility", 1), sessionDay("Front Split", 1)]),
+  dayPlan("Mon", [sessionDay("Middle Split", 1)]),
+  dayPlan("Tue", [sessionDay("Pancake", 1)]),
+  dayPlan("Wed", [sessionDay("Hip Mobility", 2)]),
+  dayPlan("Thu", [sessionDay("Front Split", 2)]),
+  dayPlan("Fri", [sessionDay("Middle Split", 2)]),
+  dayPlan("Sat", [sessionDay("Pancake", 2)]),
 ];
 
 const WORKOUTS_PER_WEEK = weeklyTemplate.reduce((total, day) => total + day.workouts.length, 0);
@@ -92,8 +102,8 @@ function buildPlan() {
 
     return {
       weekNumber,
-      weekLabel: "Mon-Sun",
-      summary: "Daily workouts; Friday has two",
+      weekLabel: "Sun-Sat",
+      summary: "Daily workouts; Sunday has two",
       days,
     };
   });
@@ -302,16 +312,22 @@ function weekNoteRecord(id) {
 }
 
 function dayFromItemId(id) {
-  const match = id.match(/^intermediate4-week-(\d+)-day-(\d+)-workout-(\d+)$/);
-  if (!match) return null;
-  const weekNumber = Number(match[1]);
-  const dayIndex = Number(match[2]);
-  const workoutIndex = Number(match[3]);
-  const week = plan[weekNumber - 1];
-  const day = week?.days[dayIndex];
-  const workout = day?.workouts[workoutIndex];
-  if (!workout) return null;
-  return { weekNumber, dayName: day.dayName, dayIndex, workoutIndex, workout };
+  const legacy = legacyWorkoutFromItemId(id);
+  if (legacy) {
+    return findWorkoutSlot(legacy.weekNumber, (workout) => {
+      return workout.area === legacy.workout.area && workout.workoutNumber === legacy.workout.workoutNumber;
+    });
+  }
+
+  const stableMatch = id.match(/^intermediate4-week-(\d+)-([a-z0-9-]+)-(\d+)$/);
+  if (!stableMatch) return null;
+
+  const weekNumber = Number(stableMatch[1]);
+  const areaSlug = stableMatch[2];
+  const workoutNumber = Number(stableMatch[3]);
+  return findWorkoutSlot(weekNumber, (workout) => {
+    return slugify(workout.area) === areaSlug && workout.workoutNumber === workoutNumber;
+  });
 }
 
 function appendHiddenField(form, name, value) {
@@ -352,15 +368,8 @@ function migrateState(value) {
 }
 
 function migrateItemId(id) {
-  const currentMatch = id.match(/^intermediate4-week-(\d+)-day-(\d+)-workout-(\d+)$/);
-  if (currentMatch) {
-    const weekNumber = Number(currentMatch[1]);
-    const dayIndex = Number(currentMatch[2]);
-    const workoutIndex = Number(currentMatch[3]);
-    return isValidWorkoutSlot(weekNumber, dayIndex, workoutIndex) ? id : null;
-  }
-
-  return null;
+  const current = dayFromItemId(id);
+  return current ? stableWorkoutId(current.weekNumber, current.workout) : null;
 }
 
 function migrateNoteId(id) {
@@ -373,8 +382,41 @@ function migrateNoteId(id) {
   return migrateItemId(id);
 }
 
-function isValidWorkoutSlot(weekNumber, dayIndex, workoutIndex) {
-  return Boolean(plan[weekNumber - 1]?.days[dayIndex]?.workouts[workoutIndex]);
+function findWorkoutSlot(weekNumber, predicate) {
+  const week = plan[weekNumber - 1];
+  if (!week) return null;
+
+  for (let dayIndex = 0; dayIndex < week.days.length; dayIndex += 1) {
+    const day = week.days[dayIndex];
+    const workoutIndex = day.workouts.findIndex(predicate);
+    if (workoutIndex >= 0) {
+      return { weekNumber, dayName: day.dayName, dayIndex, workoutIndex, workout: day.workouts[workoutIndex] };
+    }
+  }
+
+  return null;
+}
+
+function legacyWorkoutFromItemId(id) {
+  const match = id.match(/^intermediate4-week-(\d+)-day-(\d+)-workout-(\d+)$/);
+  if (!match) return null;
+
+  const weekNumber = Number(match[1]);
+  const dayIndex = Number(match[2]);
+  const workoutIndex = Number(match[3]);
+  const day = legacyWeeklyTemplate[dayIndex];
+  const workout = day?.workouts[workoutIndex];
+  if (!workout || weekNumber < 1 || weekNumber > PLAN_WEEKS) return null;
+
+  return { weekNumber, workout };
+}
+
+function stableWorkoutId(weekNumber, workout) {
+  return `intermediate4-week-${weekNumber}-${slugify(workout.area)}-${workout.workoutNumber}`;
+}
+
+function slugify(value) {
+  return String(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
 function updateSyncStatus(message) {
@@ -574,7 +616,8 @@ function getCurrentWeekNumber() {
 }
 
 function itemId(weekNumber, dayIndex, workoutIndex) {
-  return `intermediate4-week-${weekNumber}-day-${dayIndex}-workout-${workoutIndex}`;
+  const workout = plan[weekNumber - 1]?.days[dayIndex]?.workouts[workoutIndex];
+  return workout ? stableWorkoutId(weekNumber, workout) : `intermediate4-week-${weekNumber}-day-${dayIndex}-workout-${workoutIndex}`;
 }
 
 function weekNoteId(weekNumber) {

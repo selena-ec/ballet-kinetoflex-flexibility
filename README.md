@@ -12,9 +12,9 @@ https://selena-ec.github.io/kinetoflex-flexibility/
 
 - 4 weeks
 - 32 tracked flexibility exercises
-- 4 weekly Mon-Sun plans
+- 4 weekly Sun-Sat plans
 - Daily flexibility workouts
-- 2 exercises on Friday
+- 2 exercises on Sunday
 - 4 focus areas: Hip Mobility, Front Split, Middle Split, Pancake
 - Google Sheets sync support through Apps Script
 

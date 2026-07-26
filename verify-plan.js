@@ -1,13 +1,13 @@
 const planWeeks = 4;
 const weeklyTemplate = [
-  [["Hip Mobility", 1]],
-  [["Front Split", 1]],
+  [
+    ["Hip Mobility", 1],
+    ["Front Split", 1],
+  ],
   [["Middle Split", 1]],
   [["Pancake", 1]],
-  [
-    ["Hip Mobility", 2],
-    ["Front Split", 2],
-  ],
+  [["Hip Mobility", 2]],
+  [["Front Split", 2]],
   [["Middle Split", 2]],
   [["Pancake", 2]],
 ];
@@ -45,7 +45,7 @@ for (let week = 0; week < planWeeks; week += 1) {
 
 assertEqual(workoutSlots, 32, "workout slots");
 assertEqual(openDays, 0, "open days");
-assertEqual(twoWorkoutDays, 4, "two-workout Friday slots");
+assertEqual(twoWorkoutDays, 4, "two-workout Sunday slots");
 
 for (const area of Object.keys(counts)) {
   assertEqual(counts[area], 8, `${area} sessions`);

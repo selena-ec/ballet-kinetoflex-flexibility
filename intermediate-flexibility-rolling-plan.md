@@ -9,7 +9,7 @@ This is a 4-week Intermediate-level flexibility plan based on the four areas in 
 - Middle Split
 - Pancake
 
-The plan is organized by week, Monday through Sunday. Each week includes 8 flexibility exercises. Train daily with one exercise per day, except Friday, which has two exercises.
+The plan is organized by week, Sunday through Saturday. Each week includes 8 flexibility exercises. Train daily with one exercise per day, except Sunday, which has two exercises.
 
 Follow-along videos count as alternate formats for the same workout. They are not separate sessions.
 
@@ -30,13 +30,13 @@ Use only these 8 sessions:
 
 | Day | Sessions |
 |---|---|
-| Mon | Hip Mobility Intermediate - Workout 1 |
-| Tue | Front Split Intermediate - Workout 1 |
-| Wed | Middle Split Intermediate - Workout 1 |
-| Thu | Pancake Intermediate - Workout 1 |
-| Fri | Hip Mobility Intermediate - Workout 2; Front Split Intermediate - Workout 2 |
-| Sat | Middle Split Intermediate - Workout 2 |
-| Sun | Pancake Intermediate - Workout 2 |
+| Sun | Hip Mobility Intermediate - Workout 1; Front Split Intermediate - Workout 1 |
+| Mon | Middle Split Intermediate - Workout 1 |
+| Tue | Pancake Intermediate - Workout 1 |
+| Wed | Hip Mobility Intermediate - Workout 2 |
+| Thu | Front Split Intermediate - Workout 2 |
+| Fri | Middle Split Intermediate - Workout 2 |
+| Sat | Pancake Intermediate - Workout 2 |
 
 ## 4-Week Volume
 
