@@ -1,12 +1,13 @@
 # Ballet Kinetoflex Flexibility Tracker
 
-Intermediate flexibility tracker for a 4-week Kinetoflex ballet support plan.
+Intermediate and Beginner flexibility trackers for 4-week Kinetoflex ballet support plans.
 
 ## Web App
 
-Open the live app here:
+Open the live apps here:
 
-https://selena-ec.github.io/kinetoflex-flexibility/
+- Intermediate: https://selena-ec.github.io/kinetoflex-flexibility/
+- Beginner: https://selena-ec.github.io/kinetoflex-flexibility/beginner/
 
 ## Plan
 
@@ -26,4 +27,5 @@ https://selena-ec.github.io/kinetoflex-flexibility/
 - `config.js` - Google Apps Script endpoint configuration
 - `google-apps-script.gs` - Google Sheets backend
 - `intermediate-flexibility-rolling-plan.md` - plan details
-- `google-sheets-backend-setup.md` - backend setup notes
+- `google-sheets-backend-setup.md` - Intermediate backend setup notes
+- `beginner/` - Beginner app clone with separate storage and backend setup
