@@ -38,26 +38,34 @@ function doGet(e) {
     return jsonp_(e, { ok: false, error: "Unknown action" });
   }
 
-  const workoutSheet = getSheet_(WORKOUT_SHEET_NAME, WORKOUT_HEADERS);
-  const cycleNotesSheet = getSheet_(CYCLE_NOTES_SHEET_NAME, CYCLE_NOTE_HEADERS);
-  const rowState = rowsToState_(workoutSheet, cycleNotesSheet);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const workoutSheet = getSheet_(WORKOUT_SHEET_NAME, WORKOUT_HEADERS);
+    const cycleNotesSheet = getSheet_(CYCLE_NOTES_SHEET_NAME, CYCLE_NOTE_HEADERS);
+    dedupeSheet_(workoutSheet);
+    dedupeSheet_(cycleNotesSheet);
+    const rowState = rowsToState_(workoutSheet, cycleNotesSheet);
 
-  if (rowState.hasRecords) {
+    if (rowState.hasRecords) {
+      return jsonp_(e, {
+        ok: true,
+        storageMode: "rows",
+        state: rowState.state,
+        updatedAt: rowState.updatedAt,
+      });
+    }
+
+    const legacy = getLegacyState_();
     return jsonp_(e, {
       ok: true,
-      storageMode: "rows",
-      state: rowState.state,
-      updatedAt: rowState.updatedAt,
+      storageMode: "legacy",
+      state: legacy.state,
+      updatedAt: legacy.updatedAt,
     });
+  } finally {
+    lock.releaseLock();
   }
-
-  const legacy = getLegacyState_();
-  return jsonp_(e, {
-    ok: true,
-    storageMode: "legacy",
-    state: legacy.state,
-    updatedAt: legacy.updatedAt,
-  });
 }
 
 function doPost(e) {
@@ -65,20 +73,28 @@ function doPost(e) {
     return text_({ ok: false, error: "Unauthorized" });
   }
 
-  const payload = safeParse_(e.parameter.payload || "{}");
-  const workoutSheet = getSheet_(WORKOUT_SHEET_NAME, WORKOUT_HEADERS);
-  const cycleNotesSheet = getSheet_(CYCLE_NOTES_SHEET_NAME, CYCLE_NOTE_HEADERS);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const payload = safeParse_(e.parameter.payload || "{}");
+    const workoutSheet = getSheet_(WORKOUT_SHEET_NAME, WORKOUT_HEADERS);
+    const cycleNotesSheet = getSheet_(CYCLE_NOTES_SHEET_NAME, CYCLE_NOTE_HEADERS);
+    dedupeSheet_(workoutSheet);
+    dedupeSheet_(cycleNotesSheet);
 
-  if (payload.records) {
-    upsertWorkouts_(workoutSheet, payload.records.workouts || []);
-    upsertCycleNotes_(cycleNotesSheet, payload.records.cycleNotes || []);
-  } else {
-    const records = stateToRecords_(payload.state || {}, payload.updatedAt || new Date().toISOString());
-    upsertWorkouts_(workoutSheet, records.workouts);
-    upsertCycleNotes_(cycleNotesSheet, records.cycleNotes);
+    if (payload.records) {
+      upsertWorkouts_(workoutSheet, payload.records.workouts || []);
+      upsertCycleNotes_(cycleNotesSheet, payload.records.cycleNotes || []);
+    } else {
+      const records = stateToRecords_(payload.state || {}, payload.updatedAt || new Date().toISOString());
+      upsertWorkouts_(workoutSheet, records.workouts);
+      upsertCycleNotes_(cycleNotesSheet, records.cycleNotes);
+    }
+
+    return text_({ ok: true, storageMode: "rows" });
+  } finally {
+    lock.releaseLock();
   }
-
-  return text_({ ok: true, storageMode: "rows" });
 }
 
 function rowsToState_(workoutSheet, cycleNotesSheet) {
@@ -199,6 +215,32 @@ function upsertRow_(sheet, rowById, id, values) {
   } else {
     sheet.appendRow(values);
     rowById[id] = sheet.getLastRow();
+  }
+}
+
+function dedupeSheet_(sheet) {
+  const rows = readRows_(sheet);
+  if (rows.length < 2) return;
+
+  const latestRowsById = {};
+  const order = [];
+  rows.forEach((row) => {
+    const id = row[0];
+    if (!id) return;
+
+    if (!latestRowsById[id]) order.push(id);
+    const current = latestRowsById[id];
+    if (!current || Date.parse(row[row.length - 1] || "0") >= Date.parse(current[current.length - 1] || "0")) {
+      latestRowsById[id] = row;
+    }
+  });
+
+  const uniqueRows = order.map((id) => latestRowsById[id]);
+  if (uniqueRows.length === rows.length) return;
+
+  sheet.getRange(2, 1, rows.length, sheet.getLastColumn()).clearContent();
+  if (uniqueRows.length) {
+    sheet.getRange(2, 1, uniqueRows.length, uniqueRows[0].length).setValues(uniqueRows);
   }
 }
 
