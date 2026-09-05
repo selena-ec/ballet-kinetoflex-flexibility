@@ -1,72 +1,38 @@
-const planWeeks = 4;
-const weeklyTemplate = [
-  [
-    ["Hip Mobility", 1],
-    ["Front Split", 1],
-  ],
-  [["Middle Split", 1]],
-  [["Pancake", 1]],
-  [["Hip Mobility", 2]],
-  [["Front Split", 2]],
-  [["Middle Split", 2]],
-  [["Pancake", 2]],
-];
+const fs = require("fs");
 
-const counts = {
-  "Hip Mobility": 0,
-  "Front Split": 0,
-  "Middle Split": 0,
-  Pancake: 0,
-};
+const html = fs.readFileSync("index.html", "utf8");
+const app = fs.readFileSync("app.js", "utf8");
+const backend = fs.readFileSync("google-apps-script.gs", "utf8");
+const combined = `${html}\n${app}`.toLowerCase();
 
-const workoutCounts = {
-  "Hip Mobility": { 1: 0, 2: 0 },
-  "Front Split": { 1: 0, 2: 0 },
-  "Middle Split": { 1: 0, 2: 0 },
-  Pancake: { 1: 0, 2: 0 },
-};
-
-let workoutSlots = 0;
-let twoWorkoutDays = 0;
-let openDays = 0;
-
-for (let week = 0; week < planWeeks; week += 1) {
-  weeklyTemplate.forEach((day) => {
-    if (!day.length) openDays += 1;
-    if (day.length === 2) twoWorkoutDays += 1;
-
-    day.forEach(([area, workoutNumber]) => {
-      workoutSlots += 1;
-      counts[area] += 1;
-      workoutCounts[area][workoutNumber] += 1;
-    });
-  });
-}
-
-assertEqual(workoutSlots, 32, "workout slots");
-assertEqual(openDays, 0, "open days");
-assertEqual(twoWorkoutDays, 4, "two-workout Sunday slots");
-
-for (const area of Object.keys(counts)) {
-  assertEqual(counts[area], 8, `${area} sessions`);
-}
-
-for (const area of Object.keys(workoutCounts)) {
-  assertEqual(workoutCounts[area][1], 4, `${area} workout 1 sessions`);
-  assertEqual(workoutCounts[area][2], 4, `${area} workout 2 sessions`);
-}
-
-console.log("Plan verification passed:", {
-  weeks: planWeeks,
-  workoutSlots,
-  openDays,
-  twoWorkoutDays,
-  counts,
-  workoutCounts,
+const expectedOrder = ["flexibility", "turnout", "pirouette", "foot-ankle", "backbend"];
+let cursor = -1;
+expectedOrder.forEach((id) => {
+  const next = app.indexOf(`id:"${id}"`, cursor + 1);
+  if (next < 0) throw new Error(`Missing or incorrectly ordered program: ${id}`);
+  cursor = next;
 });
 
-function assertEqual(actual, expected, label) {
-  if (actual !== expected) {
-    throw new Error(`${label}: expected ${expected}, got ${actual}`);
-  }
-}
+if (!app.includes('{id:"flexibility",name:"Flexibility",levels:true}')) throw new Error("Flexibility must have levels");
+if (!app.includes('{id:"backbend",name:"Backbend",levels:true}')) throw new Error("Backbend must have levels");
+["turnout", "pirouette", "foot-ankle"].forEach((id) => {
+  if (!app.includes(`{id:"${id}"`) || !app.includes(`{id:"${id}"`, app.indexOf(`{id:"${id}"`))) throw new Error(`Missing ${id}`);
+  const definition = app.slice(app.indexOf(`{id:"${id}"`), app.indexOf(`{id:"${id}"`) + 100);
+  if (!definition.includes("levels:false")) throw new Error(`${id} must not have levels`);
+});
+if (/textarea|session note|weekly notes|week notes|history view/.test(combined)) throw new Error("Notes or history UI remains");
+if (!backend.includes("clearOldTrackerDataOnce_")) throw new Error("Sheet reset migration is missing");
+if (!backend.includes("KinetoState")) throw new Error("Unified Sheet state is missing");
+if (!app.includes("PLAN_START=new Date(2026,8,6)")) throw new Error("Week 1 must start on September 6, 2026");
+if (!html.includes('<option value="6">Week 6</option>')) throw new Error("The six-week cycle selector is incomplete");
+if (!html.includes("data-program-workout-select")) throw new Error("Programs view workout dropdown is missing");
+if (html.includes("data-level-control")) throw new Error("Programs view must not show level selectors");
+if (html.includes("data-today-level-control")) throw new Error("Redundant Backbend level selector remains");
+if ((app.match(/Workout [12]\"/g) || []).length < 24) throw new Error("All 24 flexibility workouts must be present");
+if (!app.includes('const turnoutWorkouts=["Week 1 & 2 - Workout 1","Week 1 & 2 - Workout 2","Week 3 & 4 - Workout 1","Week 3 & 4 - Workout 2","Week 5 & 6 - Workout 1","Week 5 & 6 - Workout 2"]')) throw new Error("All six Turnout workouts must be present and ordered");
+if (!app.includes('const pirouetteWorkouts=["Week 1 & 2 - Workout 1","Week 1 & 2 - Workout 2","Week 3 & 4 - Workout 1","Week 3 & 4 - Workout 2","Week 5 & 6 - Workout 1","Week 5 & 6 - Workout 2","Workout A","Workout B","Workout C","Workout D"]')) throw new Error("All ten Pirouette workouts must be present and ordered");
+if (!app.includes('const footAnkleWorkouts=["Week 1 & 2 - Workout 1","Week 1 & 2 - Workout 2","Week 3 & 4 - Workout 1","Week 3 & 4 - Workout 2","Week 5 & 6 - Workout 1","Week 5 & 6 - Workout 2","Pre-Pointe Foundations Plan Booster"]')) throw new Error("All seven Foot & Ankle workouts must be present and ordered");
+if ((app.match(/(?:Beginner|Intermediate|Advanced) - Week [135] & [246], Workout [123]/g) || []).length !== 21) throw new Error("The 21 leveled Backbend workouts are incomplete");
+if (!app.includes('"The Needle" Training Plan - Workout A') || !app.includes('Wrist Mobility & Strength - Workout B')) throw new Error("The five additional Backbend workouts are incomplete");
+
+console.log("Kineto plan verification passed.");

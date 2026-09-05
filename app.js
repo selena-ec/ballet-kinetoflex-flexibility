@@ -1,634 +1,72 @@
-const PLAN_LEVEL = "Intermediate";
-const PLAN_VERSION = "intermediate-4week-daily-v1";
-const STORAGE_KEY = "intermediateFlexibilityTracker.weekly4.v1";
-const PLAN_WEEKS = 4;
-const CLOUD_CONFIG = window.FLEX_TRACKER_CONFIG || {};
-const CLOUD_URL = (CLOUD_CONFIG.GOOGLE_APPS_SCRIPT_URL || "").trim();
-const CLOUD_TOKEN = CLOUD_CONFIG.SYNC_TOKEN || "";
-const CLOUD_ENABLED = Boolean(CLOUD_URL);
-const SAVE_DEBOUNCE_MS = 700;
-
-const legacyWeeklyTemplate = [
-  dayPlan("Mon", [sessionDay("Hip Mobility", 1)]),
-  dayPlan("Tue", [sessionDay("Front Split", 1)]),
-  dayPlan("Wed", [sessionDay("Middle Split", 1)]),
-  dayPlan("Thu", [sessionDay("Pancake", 1)]),
-  dayPlan("Fri", [sessionDay("Hip Mobility", 2), sessionDay("Front Split", 2)]),
-  dayPlan("Sat", [sessionDay("Middle Split", 2)]),
-  dayPlan("Sun", [sessionDay("Pancake", 2)]),
+const APP_VERSION="kineto-v9",STORAGE_KEY="kineto.tracker.v1",PLAN_WEEKS=6,PLAN_START=new Date(2026,8,6);
+const DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],LEVELS=["beginner","intermediate","advanced"];
+const CLOUD_CONFIG=window.FLEX_TRACKER_CONFIG||{},CLOUD_URL=(CLOUD_CONFIG.GOOGLE_APPS_SCRIPT_URL||"").trim(),CLOUD_TOKEN=CLOUD_CONFIG.SYNC_TOKEN||"",CLOUD_ENABLED=Boolean(CLOUD_URL);
+const programs=[
+  {id:"flexibility",name:"Flexibility",levels:true},
+  {id:"turnout",name:"Turnout",levels:false},
+  {id:"pirouette",name:"Pirouette",levels:false},
+  {id:"foot-ankle",name:"Foot & Ankle",levels:false},
+  {id:"backbend",name:"Backbend",levels:true}
 ];
+const flexibilityWorkouts=["Hip Mobility Beginner - Workout 1","Hip Mobility Beginner - Workout 2","Hip Mobility Intermediate - Workout 1","Hip Mobility Intermediate - Workout 2","Hip Mobility Advanced - Workout 1","Hip Mobility Advanced - Workout 2","Pancake Beginner - Workout 1","Pancake Beginner - Workout 2","Pancake Intermediate - Workout 1","Pancake Intermediate - Workout 2","Pancake Advanced - Workout 1","Pancake Advanced - Workout 2","Front Split Beginner - Workout 1","Front Split Beginner - Workout 2","Front Split Intermediate - Workout 1","Front Split Intermediate - Workout 2","Front Split Advanced - Workout 1","Front Split Advanced - Workout 2","Middle Split Beginner - Workout 1","Middle Split Beginner - Workout 2","Middle Split Intermediate - Workout 1","Middle Split Intermediate - Workout 2","Middle Split Advanced - Workout 1","Middle Split Advanced - Workout 2"];
+const turnoutWorkouts=["Week 1 & 2 - Workout 1","Week 1 & 2 - Workout 2","Week 3 & 4 - Workout 1","Week 3 & 4 - Workout 2","Week 5 & 6 - Workout 1","Week 5 & 6 - Workout 2"];
+const pirouetteWorkouts=["Week 1 & 2 - Workout 1","Week 1 & 2 - Workout 2","Week 3 & 4 - Workout 1","Week 3 & 4 - Workout 2","Week 5 & 6 - Workout 1","Week 5 & 6 - Workout 2","Workout A","Workout B","Workout C","Workout D"];
+const footAnkleWorkouts=["Week 1 & 2 - Workout 1","Week 1 & 2 - Workout 2","Week 3 & 4 - Workout 1","Week 3 & 4 - Workout 2","Week 5 & 6 - Workout 1","Week 5 & 6 - Workout 2","Pre-Pointe Foundations Plan Booster"];
+const backbendWorkouts=["Beginner - Week 1 & 2, Workout 1","Beginner - Week 1 & 2, Workout 2","Beginner - Week 3 & 4, Workout 1","Beginner - Week 3 & 4, Workout 2","Beginner - Week 5 & 6, Workout 1","Beginner - Week 5 & 6, Workout 2","Intermediate - Week 1 & 2, Workout 1","Intermediate - Week 1 & 2, Workout 2","Intermediate - Week 3 & 4, Workout 1","Intermediate - Week 3 & 4, Workout 2","Intermediate - Week 5 & 6, Workout 1","Intermediate - Week 5 & 6, Workout 2","Advanced - Week 1 & 2, Workout 1","Advanced - Week 1 & 2, Workout 2","Advanced - Week 1 & 2, Workout 3","Advanced - Week 3 & 4, Workout 1","Advanced - Week 3 & 4, Workout 2","Advanced - Week 3 & 4, Workout 3","Advanced - Week 5 & 6, Workout 1","Advanced - Week 5 & 6, Workout 2","Advanced - Week 5 & 6, Workout 3",'"The Needle" Training Plan - Workout A','"The Needle" Training Plan - Workout B','"The Needle" Training Plan - Workout C',"Wrist Mobility & Strength - Workout A","Wrist Mobility & Strength - Workout B"];
+const workoutOptions={flexibility:flexibilityWorkouts,turnout:turnoutWorkouts,pirouette:pirouetteWorkouts,"foot-ankle":footAnkleWorkouts,backbend:backbendWorkouts};
+let state=loadState(),selectedWeek=cycleWeek(new Date()),saveTimer=null;
+const $=s=>document.querySelector(s),todayPrograms=$("#todayPrograms"),programGrid=$("#programGrid"),todayTemplate=$("#todayProgramTemplate"),cardTemplate=$("#programCardTemplate"),syncStatus=$("#syncStatus"),syncNow=$("#syncNow");
 
-const weeklyTemplate = [
-  dayPlan("Sun", [sessionDay("Hip Mobility", 1), sessionDay("Front Split", 1)]),
-  dayPlan("Mon", [sessionDay("Middle Split", 1)]),
-  dayPlan("Tue", [sessionDay("Pancake", 1)]),
-  dayPlan("Wed", [sessionDay("Hip Mobility", 2)]),
-  dayPlan("Thu", [sessionDay("Front Split", 2)]),
-  dayPlan("Fri", [sessionDay("Middle Split", 2)]),
-  dayPlan("Sat", [sessionDay("Pancake", 2)]),
-];
+$("#todayDate").textContent=new Intl.DateTimeFormat(undefined,{weekday:"long",month:"long",day:"numeric"}).format(new Date());
+$("#weekJump").value=String(selectedWeek);
+document.querySelectorAll("[data-view]").forEach(button=>button.addEventListener("click",()=>selectView(button.dataset.view)));
+$("#weekJump").addEventListener("change",event=>{selectedWeek=Number(event.target.value);renderPrograms()});
+$("#resetProgress").addEventListener("click",()=>{if(!confirm("Reset all Kineto progress? Your level choices will stay the same."))return;state.completed={};saveState();render()});
+syncNow.addEventListener("click",()=>loadCloudState(true));
+render();loadCloudState(false);
 
-const WORKOUTS_PER_WEEK = weeklyTemplate.reduce((total, day) => total + day.workouts.length, 0);
+function defaultState(){return{levels:{flexibility:"beginner",backbend:"beginner"},selections:{},completed:{},updatedAt:""}}
+function loadState(){try{return normalizeState(JSON.parse(localStorage.getItem(STORAGE_KEY)))}catch{return defaultState()}}
+function normalizeState(value){const next=defaultState();if(!value||typeof value!=="object")return next;programs.filter(p=>p.levels).forEach(p=>{if(LEVELS.includes(value.levels?.[p.id]))next.levels[p.id]=value.levels[p.id]});if(value.selections&&typeof value.selections==="object")next.selections=value.selections;if(value.completed&&typeof value.completed==="object")next.completed=value.completed;if(typeof value.updatedAt==="string")next.updatedAt=value.updatedAt;return next}
+function render(){renderToday();renderPrograms()}
 
-const areaClass = {
-  "Hip Mobility": "hip",
-  "Front Split": "front",
-  "Middle Split": "middle",
-  Pancake: "pancake",
-};
+function renderToday(){
+  const now=new Date(),day=now.getDay(),week=cycleWeek(now),ids=[];todayPrograms.replaceChildren();
+  programs.forEach((program,index)=>{
+    const fragment=todayTemplate.content.cloneNode(true),id=workoutId(program,week,day),box=fragment.querySelector("[data-complete]");ids.push(id);
+    fragment.querySelector("[data-program-number]").textContent=`Program ${index+1}`;fragment.querySelector("[data-program-name]").textContent=program.name;fragment.querySelector("[data-session-name]").textContent=sessionName(program,week,day);
+    const workoutControl=fragment.querySelector("[data-workout-control]"),workoutSelect=fragment.querySelector("[data-workout-select]"),options=workoutOptions[program.id];if(options){workoutControl.hidden=false;workoutSelect.setAttribute("aria-label",`${program.name} workout`);options.forEach(name=>workoutSelect.add(new Option(name,name)));workoutSelect.value=selectedWorkout(program,week,day);workoutSelect.addEventListener("change",()=>{state.selections[selectionKey(program,week,day)]=workoutSelect.value;updateLevelFromWorkout(program,workoutSelect.value);saveState();render()})}
+    const pill=fragment.querySelector("[data-level]");if(program.levels)pill.textContent=state.levels[program.id];else pill.hidden=true;
+    box.checked=Boolean(state.completed[id]);box.setAttribute("aria-label",`Mark ${program.name} complete`);box.addEventListener("change",()=>{state.completed[id]=box.checked;saveState();render()});todayPrograms.append(fragment);
+  });
+  const count=ids.filter(id=>state.completed[id]).length;$("#todayCompleted").textContent=count;$("#todayPlanned").textContent=ids.length;$("#todayMessage").textContent=count===ids.length?"Today’s routine is complete. Beautiful work.":now<PLAN_START?"Trial week · Your official Week 1 starts Sunday, September 6.":`Week ${week} · Complete one session from each program.`;
+}
 
-const state = loadState();
-const plan = buildPlan();
-
-const weeksEl = document.querySelector("#weeks");
-const weekTemplate = document.querySelector("#weekTemplate");
-const progressGrid = document.querySelector("#progressGrid");
-const totalCompletedEl = document.querySelector("#totalCompleted");
-const totalPlannedEl = document.querySelector("#totalPlanned");
-const weekJump = document.querySelector("#weekJump");
-const viewFilter = document.querySelector("#viewFilter");
-const resetProgress = document.querySelector("#resetProgress");
-const syncStatus = document.querySelector("#syncStatus");
-const syncNow = document.querySelector("#syncNow");
-let saveTimer = null;
-let isHydratingFromCloud = false;
-let dirtyWorkoutIds = new Set();
-let dirtyWeekNoteIds = new Set();
-let needsFullCloudSave = false;
-
-renderWeekJump();
-render();
-loadCloudState();
-updateSyncStatus(CLOUD_ENABLED ? "Cloud sync configured. Loading Google Sheets data..." : "Local-only mode. Add your Google Apps Script URL in config.js to sync with Google Sheets.");
-
-weekJump.addEventListener("change", () => {
-  const target = document.querySelector(`[data-week="${weekJump.value}"]`);
-  target?.scrollIntoView({ behavior: "smooth", block: "start" });
-});
-
-viewFilter.addEventListener("change", render);
-
-syncNow.addEventListener("click", () => {
-  window.clearTimeout(saveTimer);
-  if (hasPendingLocalChanges()) {
-    needsFullCloudSave = true;
-    saveCloudState();
-    return;
-  }
-  loadCloudState({ force: true });
-});
-
-resetProgress.addEventListener("click", () => {
-  const confirmed = window.confirm("Reset all checkmarks and notes?");
-  if (!confirmed) return;
-  localStorage.removeItem(STORAGE_KEY);
-  Object.keys(state).forEach((key) => delete state[key]);
-  Object.assign(state, defaultState());
-  state.updatedAt = new Date().toISOString();
-  needsFullCloudSave = true;
-  dirtyWorkoutIds = new Set(getAllWorkoutIds());
-  dirtyWeekNoteIds = new Set(plan.map((week) => weekNoteId(week.weekNumber)));
-  saveState();
-  render();
-});
-
-function buildPlan() {
-  return Array.from({ length: PLAN_WEEKS }, (_, index) => {
-    const weekNumber = index + 1;
-    const days = weeklyTemplate.map((day) => ({
-      dayName: day.dayName,
-      workouts: day.workouts.map((workout) => ({ ...workout })),
-    }));
-
-    return {
-      weekNumber,
-      weekLabel: "Sun-Sat",
-      summary: "Daily workouts; Sunday has two",
-      days,
-    };
+function renderPrograms(){
+  programGrid.replaceChildren();
+  programs.forEach((program,index)=>{
+    const fragment=cardTemplate.content.cloneNode(true);fragment.querySelector("[data-program-number]").textContent=`Program ${index+1}`;fragment.querySelector("[data-program-name]").textContent=program.name;fragment.querySelector("[data-week-label]").textContent=`Week ${selectedWeek} progress`;
+    const programWorkoutControl=fragment.querySelector("[data-program-workout-control]"),programWorkoutSelect=fragment.querySelector("[data-program-workout-select]"),options=workoutOptions[program.id],day=new Date().getDay();if(options){programWorkoutControl.hidden=false;fragment.querySelector("[data-program-workout-label]").textContent=`${DAYS[day]} workout`;programWorkoutSelect.setAttribute("aria-label",`${program.name} ${DAYS[day]} workout`);options.forEach(name=>programWorkoutSelect.add(new Option(name,name)));programWorkoutSelect.value=selectedWorkout(program,selectedWeek,day);programWorkoutSelect.addEventListener("change",()=>{state.selections[selectionKey(program,selectedWeek,day)]=programWorkoutSelect.value;updateLevelFromWorkout(program,programWorkoutSelect.value);saveState();render()})}
+    const ids=DAYS.map((_,day)=>workoutId(program,selectedWeek,day)),done=ids.filter(id=>state.completed[id]).length;fragment.querySelector("[data-progress-count]").textContent=`${done}/7`;fragment.querySelector("[data-progress-bar]").style.width=`${done/7*100}%`;
+    const days=fragment.querySelector("[data-week-days]");DAYS.forEach((name,day)=>{const item=document.createElement("span");item.className="day-dot";item.textContent=name;item.title=sessionName(program,selectedWeek,day);if(state.completed[ids[day]])item.classList.add("is-complete");if(selectedWeek===cycleWeek(new Date())&&day===new Date().getDay())item.classList.add("is-today");days.append(item)});programGrid.append(fragment);
   });
 }
 
-function dayPlan(dayName, workouts) {
-  return { dayName, workouts };
+function updateLevelFromWorkout(program,value){if(!program.levels)return;const selectedLevel=LEVELS.find(level=>value.includes(title(level)));if(selectedLevel)state.levels[program.id]=selectedLevel}
+function selectView(view){$("#todayView").hidden=view!=="today";$("#programsView").hidden=view!=="programs";document.querySelectorAll("[data-view]").forEach(button=>{const active=button.dataset.view===view;button.classList.toggle("is-active",active);active?button.setAttribute("aria-current","page"):button.removeAttribute("aria-current")})}
+function cycleWeek(date){if(date<PLAN_START)return 1;const days=Math.floor((date-PLAN_START)/86400000);return Math.floor(days/7)%PLAN_WEEKS+1}
+function workoutId(program,week,day){return`${program.id}:${program.levels?state.levels[program.id]:"standard"}:week-${week}:day-${day}`}
+function selectionKey(program,week,day){return`${program.id}:week-${week}:day-${day}`}
+function selectedWorkout(program,week,day){const options=workoutOptions[program.id]||[],saved=state.selections[selectionKey(program,week,day)];if(options.includes(saved))return saved;if(program.id==="flexibility"){const level=title(state.levels.flexibility),matches=options.filter(name=>name.includes(` ${level} -`));return matches[day%matches.length]||options[0]}if(["turnout","pirouette","foot-ankle"].includes(program.id)){const pairStart=week<=2?0:week<=4?2:4;return options[pairStart+(day%2)]}if(program.id==="backbend"){const pair=week<=2?"1 & 2":week<=4?"3 & 4":"5 & 6",level=title(state.levels.backbend),matches=options.filter(name=>name.startsWith(`${level} - Week ${pair}`));return matches[day%matches.length]||options[0]}return options[0]}
+function sessionName(program,week,day){if(workoutOptions[program.id])return selectedWorkout(program,week,day);return"Daily conditioning"}
+function title(value){return value.charAt(0).toUpperCase()+value.slice(1)}
+
+function saveState(){state.updatedAt=new Date().toISOString();localStorage.setItem(STORAGE_KEY,JSON.stringify(state));if(!CLOUD_ENABLED)return;clearTimeout(saveTimer);saveTimer=setTimeout(saveCloudState,500)}
+function loadCloudState(force){
+  if(!CLOUD_ENABLED){syncStatus.textContent="Progress is saved on this device.";syncNow.hidden=true;return}
+  syncStatus.textContent=force?"Refreshing…":"Loading synced progress…";syncNow.disabled=true;
+  const callback=`kinetoLoad_${Date.now()}`,script=document.createElement("script"),url=new URL(CLOUD_URL);url.searchParams.set("action","load");url.searchParams.set("callback",callback);url.searchParams.set("_",Date.now());if(CLOUD_TOKEN)url.searchParams.set("token",CLOUD_TOKEN);
+  const cleanup=()=>{delete window[callback];script.remove();syncNow.disabled=false};window[callback]=response=>{cleanup();if(!response?.ok){syncStatus.textContent="Sync unavailable. Progress is saved on this device.";return}const cloud=normalizeState(response.state);if((Date.parse(cloud.updatedAt)||0)>(Date.parse(state.updatedAt)||0)){state=cloud;localStorage.setItem(STORAGE_KEY,JSON.stringify(state));render();syncStatus.textContent="Progress synced."}else saveCloudState()};script.onerror=()=>{cleanup();syncStatus.textContent="Sync unavailable. Progress is saved on this device."};script.src=url;document.body.append(script);
 }
-
-function sessionDay(area, workoutNumber) {
-  return {
-    area,
-    workoutNumber,
-    title: `${area} ${PLAN_LEVEL} - Workout ${workoutNumber}`,
-  };
-}
-
-function defaultState() {
-  return {
-    completed: {},
-    notes: {},
-    updatedAt: "",
-  };
-}
-
-function loadState() {
-  try {
-    const savedState = localStorage.getItem(STORAGE_KEY);
-    if (savedState) return normalizeState(JSON.parse(savedState));
-
-    return defaultState();
-  } catch {
-    return defaultState();
-  }
-}
-
-function saveState({ workoutId = "", weekNotesId = "" } = {}) {
-  if (workoutId) dirtyWorkoutIds.add(workoutId);
-  if (weekNotesId) dirtyWeekNoteIds.add(weekNotesId);
-  state.updatedAt = new Date().toISOString();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  scheduleCloudSave();
-}
-
-function scheduleCloudSave() {
-  if (!CLOUD_ENABLED || isHydratingFromCloud) return;
-  window.clearTimeout(saveTimer);
-  saveTimer = window.setTimeout(saveCloudState, SAVE_DEBOUNCE_MS);
-}
-
-function hasPendingLocalChanges() {
-  return needsFullCloudSave || dirtyWorkoutIds.size > 0 || dirtyWeekNoteIds.size > 0;
-}
-
-function loadCloudState({ force = false } = {}) {
-  if (!CLOUD_ENABLED) {
-    syncNow.disabled = true;
-    return;
-  }
-
-  updateSyncStatus(force ? "Refreshing from Google Sheets..." : "Loading from Google Sheets...");
-  syncNow.disabled = true;
-
-  const callbackName = `flexTrackerCloudLoad_${Date.now()}`;
-  const script = document.createElement("script");
-  const url = new URL(CLOUD_URL);
-  url.searchParams.set("action", "load");
-  url.searchParams.set("callback", callbackName);
-  url.searchParams.set("_", String(Date.now()));
-  if (CLOUD_TOKEN) url.searchParams.set("token", CLOUD_TOKEN);
-
-  const cleanup = () => {
-    delete window[callbackName];
-    script.remove();
-    syncNow.disabled = false;
-  };
-
-  window[callbackName] = (response) => {
-    cleanup();
-    if (!response?.ok) {
-      updateSyncStatus(`Google Sheets sync failed: ${response?.error || "unknown error"}`);
-      return;
-    }
-
-    const cloudState = normalizeState(response.state);
-    const localTime = Date.parse(state.updatedAt || "0") || 0;
-    const cloudTime = Date.parse(cloudState.updatedAt || response.updatedAt || "0") || 0;
-
-    if (cloudTime > localTime) {
-      isHydratingFromCloud = true;
-      Object.keys(state).forEach((key) => delete state[key]);
-      Object.assign(state, cloudState, { updatedAt: cloudState.updatedAt || response.updatedAt || "" });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      render();
-      isHydratingFromCloud = false;
-      updateSyncStatus("Loaded progress from Google Sheets.");
-    } else {
-      updateSyncStatus(force ? "Local progress is newer. Saving it to Google Sheets..." : "Local progress is current. Future changes will sync to Google Sheets.");
-      needsFullCloudSave = true;
-      saveCloudState();
-    }
-  };
-
-  script.onerror = () => {
-    cleanup();
-    updateSyncStatus("Could not load from Google Sheets. Local progress is still available.");
-  };
-
-  script.src = url.toString();
-  document.body.append(script);
-}
-
-function saveCloudState() {
-  if (!CLOUD_ENABLED) return;
-  window.clearTimeout(saveTimer);
-  updateSyncStatus("Saving to Google Sheets...");
-
-  const iframeName = "flexTrackerCloudSaveFrame";
-  let iframe = document.querySelector(`iframe[name="${iframeName}"]`);
-  if (!iframe) {
-    iframe = document.createElement("iframe");
-    iframe.name = iframeName;
-    iframe.hidden = true;
-    document.body.append(iframe);
-  }
-
-  const form = document.createElement("form");
-  form.method = "POST";
-  form.action = CLOUD_URL;
-  form.target = iframeName;
-  form.hidden = true;
-
-  appendHiddenField(form, "payload", JSON.stringify(buildCloudPayload()));
-  if (CLOUD_TOKEN) appendHiddenField(form, "token", CLOUD_TOKEN);
-
-  document.body.append(form);
-  form.submit();
-  form.remove();
-
-  window.setTimeout(() => {
-    updateSyncStatus(`Saved to Google Sheets at ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`);
-  }, 800);
-}
-
-function buildCloudPayload() {
-  const full = needsFullCloudSave || (!dirtyWorkoutIds.size && !dirtyWeekNoteIds.size);
-  const workoutIds = full ? getAllWorkoutIds() : [...dirtyWorkoutIds];
-  const weekNoteIds = full ? getAllWeekNoteIds() : [...dirtyWeekNoteIds];
-  const payload = {
-    planVersion: PLAN_VERSION,
-    updatedAt: state.updatedAt,
-    records: {
-      workouts: workoutIds.map((id) => workoutRecord(id)),
-      cycleNotes: weekNoteIds.map((id) => weekNoteRecord(id)),
-    },
-  };
-
-  dirtyWorkoutIds.clear();
-  dirtyWeekNoteIds.clear();
-  needsFullCloudSave = false;
-  return payload;
-}
-
-function getAllWorkoutIds() {
-  return plan.flatMap((week) => {
-    return week.days.flatMap((day, dayIndex) => {
-      return day.workouts.map((workout, workoutIndex) => itemId(week.weekNumber, dayIndex, workoutIndex));
-    });
-  });
-}
-
-function getAllWeekNoteIds() {
-  return plan.map((week) => weekNoteId(week.weekNumber));
-}
-
-function workoutRecord(id) {
-  const day = dayFromItemId(id);
-  return {
-    id,
-    planVersion: PLAN_VERSION,
-    cycle: day?.weekNumber || "",
-    day: day?.dayName || "",
-    title: day?.workout.title || "",
-    area: day?.workout.area || "",
-    workoutNumber: day?.workout.workoutNumber || "",
-    completed: Boolean(state.completed[id]),
-    sessionNote: state.notes[id]?.session || "",
-    updatedAt: state.updatedAt,
-  };
-}
-
-function weekNoteRecord(id) {
-  const weekNumber = Number(id.match(/^intermediate4-week-(\d+)-notes$/)?.[1] || "");
-  const notes = state.notes[id] || {};
-  return {
-    id,
-    planVersion: PLAN_VERSION,
-    cycle: weekNumber || "",
-    energy: notes.energy || "",
-    soreness: notes.soreness || "",
-    best: notes.best || "",
-    restricted: notes.restricted || "",
-    range: notes.range || "",
-    updatedAt: state.updatedAt,
-  };
-}
-
-function dayFromItemId(id) {
-  const legacy = legacyWorkoutFromItemId(id);
-  if (legacy) {
-    return findWorkoutSlot(legacy.weekNumber, (workout) => {
-      return workout.area === legacy.workout.area && workout.workoutNumber === legacy.workout.workoutNumber;
-    });
-  }
-
-  const stableMatch = id.match(/^intermediate4-week-(\d+)-([a-z0-9-]+)-(\d+)$/);
-  if (!stableMatch) return null;
-
-  const weekNumber = Number(stableMatch[1]);
-  const areaSlug = stableMatch[2];
-  const workoutNumber = Number(stableMatch[3]);
-  return findWorkoutSlot(weekNumber, (workout) => {
-    return slugify(workout.area) === areaSlug && workout.workoutNumber === workoutNumber;
-  });
-}
-
-function appendHiddenField(form, name, value) {
-  const input = document.createElement("input");
-  input.type = "hidden";
-  input.name = name;
-  input.value = value;
-  form.append(input);
-}
-
-function normalizeState(value) {
-  const normalized = {
-    ...defaultState(),
-    ...(value && typeof value === "object" ? value : {}),
-  };
-  return migrateState(normalized);
-}
-
-function migrateState(value) {
-  const migrated = {
-    ...defaultState(),
-    ...value,
-    completed: {},
-    notes: {},
-  };
-
-  Object.entries(value.completed || {}).forEach(([id, checked]) => {
-    const migratedId = migrateItemId(id);
-    if (migratedId) migrated.completed[migratedId] = checked;
-  });
-
-  Object.entries(value.notes || {}).forEach(([id, note]) => {
-    const migratedId = migrateNoteId(id);
-    if (migratedId) migrated.notes[migratedId] = note;
-  });
-
-  return migrated;
-}
-
-function migrateItemId(id) {
-  const current = dayFromItemId(id);
-  return current ? stableWorkoutId(current.weekNumber, current.workout) : null;
-}
-
-function migrateNoteId(id) {
-  const currentMatch = id.match(/^intermediate4-week-(\d+)-notes$/);
-  if (currentMatch) {
-    const weekNumber = Number(currentMatch[1]);
-    return weekNumber >= 1 && weekNumber <= PLAN_WEEKS ? id : null;
-  }
-
-  return migrateItemId(id);
-}
-
-function findWorkoutSlot(weekNumber, predicate) {
-  const week = plan[weekNumber - 1];
-  if (!week) return null;
-
-  for (let dayIndex = 0; dayIndex < week.days.length; dayIndex += 1) {
-    const day = week.days[dayIndex];
-    const workoutIndex = day.workouts.findIndex(predicate);
-    if (workoutIndex >= 0) {
-      return { weekNumber, dayName: day.dayName, dayIndex, workoutIndex, workout: day.workouts[workoutIndex] };
-    }
-  }
-
-  return null;
-}
-
-function legacyWorkoutFromItemId(id) {
-  const match = id.match(/^intermediate4-week-(\d+)-day-(\d+)-workout-(\d+)$/);
-  if (!match) return null;
-
-  const weekNumber = Number(match[1]);
-  const dayIndex = Number(match[2]);
-  const workoutIndex = Number(match[3]);
-  const day = legacyWeeklyTemplate[dayIndex];
-  const workout = day?.workouts[workoutIndex];
-  if (!workout || weekNumber < 1 || weekNumber > PLAN_WEEKS) return null;
-
-  return { weekNumber, workout };
-}
-
-function stableWorkoutId(weekNumber, workout) {
-  return `intermediate4-week-${weekNumber}-${slugify(workout.area)}-${workout.workoutNumber}`;
-}
-
-function slugify(value) {
-  return String(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
-
-function updateSyncStatus(message) {
-  syncStatus.textContent = message;
-}
-
-function render() {
-  renderProgress();
-  renderWeeks();
-}
-
-function renderProgress() {
-  const planned = {};
-  const completed = {};
-
-  plan.forEach((week) => {
-    week.days.forEach((day, dayIndex) => {
-      day.workouts.forEach((workout, workoutIndex) => {
-        planned[workout.area] = (planned[workout.area] || 0) + 1;
-        const id = itemId(week.weekNumber, dayIndex, workoutIndex);
-        if (state.completed[id]) {
-          completed[workout.area] = (completed[workout.area] || 0) + 1;
-        }
-      });
-    });
-  });
-
-  const totalCompleted = Object.values(completed).reduce((sum, count) => sum + count, 0);
-  const totalPlanned = Object.values(planned).reduce((sum, count) => sum + count, 0);
-  totalCompletedEl.textContent = totalCompleted;
-  totalPlannedEl.textContent = totalPlanned;
-  progressGrid.innerHTML = "";
-
-  Object.keys(areaClass).forEach((area) => {
-    const done = completed[area] || 0;
-    const total = planned[area] || 0;
-    const percent = total ? Math.round((done / total) * 100) : 0;
-    const card = document.createElement("div");
-    card.className = "area-progress";
-    card.innerHTML = `
-      <div class="area-title-row">
-        <strong>${area}</strong>
-        <span>${done}/${total}</span>
-      </div>
-      <div class="meter" aria-label="${area} progress">
-        <div class="meter-fill ${areaClass[area]}" style="width: ${percent}%"></div>
-      </div>
-    `;
-    progressGrid.append(card);
-  });
-}
-
-function renderWeeks() {
-  weeksEl.innerHTML = "";
-
-  plan.forEach((week) => {
-    if (!shouldShowWeek(week)) return;
-
-    const fragment = weekTemplate.content.cloneNode(true);
-    const weekEl = fragment.querySelector("[data-week]");
-    const daysEl = fragment.querySelector("[data-days]");
-    const workoutPanel = fragment.querySelector("[data-workout-panel]");
-    const workoutSummary = fragment.querySelector("[data-workout-summary]");
-    const completed = completedCount(week.weekNumber);
-
-    weekEl.dataset.week = String(week.weekNumber);
-    fragment.querySelector("[data-week-label]").textContent = week.weekLabel;
-    fragment.querySelector("[data-title]").textContent = `Week ${week.weekNumber}`;
-    fragment.querySelector("[data-areas]").textContent = week.summary;
-    workoutSummary.textContent = completed === WORKOUTS_PER_WEEK ? "Week workouts complete" : "Weekly workouts";
-    workoutPanel.open = completed !== WORKOUTS_PER_WEEK;
-
-    week.days.forEach((day, dayIndex) => {
-      day.workouts.forEach((workout, workoutIndex) => {
-        daysEl.append(renderWorkoutCard(week.weekNumber, dayIndex, workoutIndex, day, workout));
-      });
-    });
-
-    hydrateWeekNotes(fragment, week.weekNumber);
-    updateWeekCount(fragment, week.weekNumber);
-    weeksEl.append(fragment);
-  });
-}
-
-function renderWorkoutCard(weekNumber, dayIndex, workoutIndex, day, workout) {
-  const id = itemId(weekNumber, dayIndex, workoutIndex);
-  const card = document.createElement("section");
-  card.className = "day-card";
-  if (state.completed[id]) card.classList.add("complete");
-
-  const top = document.createElement("div");
-  top.className = "day-topline";
-  top.innerHTML = `<span class="day-number">${day.dayName}</span>`;
-
-  card.append(top, renderWorkout(weekNumber, dayIndex, workoutIndex, workout));
-  return card;
-}
-
-function renderWorkout(weekNumber, dayIndex, workoutIndex, workout) {
-  const id = itemId(weekNumber, dayIndex, workoutIndex);
-  const block = document.createElement("div");
-  block.className = "workout-block";
-
-  const checkLabel = document.createElement("label");
-  checkLabel.className = "check-row";
-  const checkbox = document.createElement("input");
-  checkbox.type = "checkbox";
-  checkbox.checked = Boolean(state.completed[id]);
-  checkbox.addEventListener("change", () => {
-    state.completed[id] = checkbox.checked;
-    saveState({ workoutId: id });
-    render();
-  });
-
-  const title = document.createElement("span");
-  title.textContent = workout.title;
-  checkLabel.append(checkbox, title);
-
-  const pill = document.createElement("span");
-  pill.className = `area-pill ${areaClass[workout.area]}`;
-  pill.textContent = workout.area;
-
-  const meta = document.createElement("p");
-  meta.className = "workout-meta";
-  meta.textContent = `${PLAN_LEVEL} level.`;
-
-  block.append(checkLabel, pill, meta, renderSessionNote(id));
-  return block;
-}
-
-function renderSessionNote(id) {
-  const wrapper = document.createElement("label");
-  wrapper.className = "session-note";
-  wrapper.innerHTML = "<span>Session note</span>";
-
-  const input = document.createElement("textarea");
-  input.placeholder = "Optional";
-  input.value = state.notes[id]?.session || "";
-  input.addEventListener("input", () => {
-    state.notes[id] = { ...(state.notes[id] || {}), session: input.value };
-    saveState({ workoutId: id });
-  });
-
-  wrapper.append(input);
-  return wrapper;
-}
-
-function hydrateWeekNotes(fragment, weekNumber) {
-  fragment.querySelectorAll("[data-note]").forEach((field) => {
-    const key = field.dataset.note;
-    const id = weekNoteId(weekNumber);
-    field.value = state.notes[id]?.[key] || "";
-    field.addEventListener("input", () => {
-      state.notes[id] = { ...(state.notes[id] || {}), [key]: field.value };
-      saveState({ weekNotesId: id });
-    });
-  });
-}
-
-function updateWeekCount(fragment, weekNumber) {
-  fragment.querySelector("[data-week-count]").textContent = `${completedCount(weekNumber)}/${WORKOUTS_PER_WEEK}`;
-}
-
-function completedCount(weekNumber) {
-  const week = plan[weekNumber - 1];
-  return week.days.reduce((total, day, dayIndex) => {
-    const completed = day.workouts.filter((workout, workoutIndex) => {
-      return state.completed[itemId(weekNumber, dayIndex, workoutIndex)];
-    }).length;
-    return total + completed;
-  }, 0);
-}
-
-function shouldShowWeek(week) {
-  const filter = viewFilter.value;
-  if (filter === "all") return true;
-  if (filter === "current") return week.weekNumber === getCurrentWeekNumber();
-  if (filter === "incomplete") {
-    return week.days.some((day, dayIndex) => {
-      return day.workouts.some((workout, workoutIndex) => {
-        return !state.completed[itemId(week.weekNumber, dayIndex, workoutIndex)];
-      });
-    });
-  }
-  return true;
-}
-
-function getCurrentWeekNumber() {
-  const firstIncomplete = plan.find((week) => {
-    return week.days.some((day, dayIndex) => {
-      return day.workouts.some((workout, workoutIndex) => {
-        return !state.completed[itemId(week.weekNumber, dayIndex, workoutIndex)];
-      });
-    });
-  });
-  return firstIncomplete?.weekNumber || PLAN_WEEKS;
-}
-
-function itemId(weekNumber, dayIndex, workoutIndex) {
-  const workout = plan[weekNumber - 1]?.days[dayIndex]?.workouts[workoutIndex];
-  return workout ? stableWorkoutId(weekNumber, workout) : `intermediate4-week-${weekNumber}-day-${dayIndex}-workout-${workoutIndex}`;
-}
-
-function weekNoteId(weekNumber) {
-  return `intermediate4-week-${weekNumber}-notes`;
-}
-
-function renderWeekJump() {
-  plan.forEach((week) => {
-    const option = document.createElement("option");
-    option.value = String(week.weekNumber);
-    option.textContent = `Week ${week.weekNumber}`;
-    weekJump.append(option);
-  });
-}
+function saveCloudState(){if(!CLOUD_ENABLED)return;syncStatus.textContent="Saving…";const name="kinetoSyncFrame";let frame=document.querySelector(`iframe[name="${name}"]`);if(!frame){frame=document.createElement("iframe");frame.name=name;frame.hidden=true;document.body.append(frame)}const form=document.createElement("form");form.method="POST";form.action=CLOUD_URL;form.target=name;form.hidden=true;addField(form,"payload",JSON.stringify({appVersion:APP_VERSION,state}));if(CLOUD_TOKEN)addField(form,"token",CLOUD_TOKEN);document.body.append(form);form.submit();form.remove();setTimeout(()=>syncStatus.textContent="Progress synced.",700)}
+function addField(form,name,value){const input=document.createElement("input");input.type="hidden";input.name=name;input.value=value;form.append(input)}

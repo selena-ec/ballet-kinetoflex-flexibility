@@ -1,328 +1,81 @@
-const LEGACY_SHEET_NAME = "TrackerState";
-const WORKOUT_SHEET_NAME = "WorkoutProgress";
-const CYCLE_NOTES_SHEET_NAME = "CycleNotes";
+const STATE_SHEET_NAME = "KinetoState";
+const STATE_HEADERS = ["appVersion", "stateJson", "updatedAt"];
 const TOKEN = ""; // Optional: set this to match SYNC_TOKEN in config.js.
-
-const WORKOUT_HEADERS = [
-  "id",
-  "planVersion",
-  "cycle",
-  "day",
-  "title",
-  "area",
-  "workoutNumber",
-  "completed",
-  "sessionNote",
-  "updatedAt",
-];
-
-const CYCLE_NOTE_HEADERS = [
-  "id",
-  "planVersion",
-  "cycle",
-  "energy",
-  "soreness",
-  "best",
-  "restricted",
-  "range",
-  "updatedAt",
-];
+const OLD_DATA_SHEETS = ["TrackerState", "WorkoutProgress", "CycleNotes", "BeginnerTrackerState", "BeginnerWorkoutProgress", "BeginnerCycleNotes"];
 
 function doGet(e) {
-  if (!isAuthorized_(e)) {
-    return jsonp_(e, { ok: false, error: "Unauthorized" });
-  }
-
-  const action = e.parameter.action || "load";
-  if (action !== "load") {
-    return jsonp_(e, { ok: false, error: "Unknown action" });
-  }
-
-  const lock = LockService.getScriptLock();
-  lock.waitLock(30000);
-  try {
-    const workoutSheet = getSheet_(WORKOUT_SHEET_NAME, WORKOUT_HEADERS);
-    const cycleNotesSheet = getSheet_(CYCLE_NOTES_SHEET_NAME, CYCLE_NOTE_HEADERS);
-    dedupeSheet_(workoutSheet);
-    dedupeSheet_(cycleNotesSheet);
-    const rowState = rowsToState_(workoutSheet, cycleNotesSheet);
-
-    if (rowState.hasRecords) {
-      return jsonp_(e, {
-        ok: true,
-        storageMode: "rows",
-        state: rowState.state,
-        updatedAt: rowState.updatedAt,
-      });
-    }
-
-    const legacy = getLegacyState_();
-    return jsonp_(e, {
-      ok: true,
-      storageMode: "legacy",
-      state: legacy.state,
-      updatedAt: legacy.updatedAt,
-    });
-  } finally {
-    lock.releaseLock();
-  }
+  if (!isAuthorized_(e)) return jsonp_(e, { ok: false, error: "Unauthorized" });
+  const sheet = getStateSheet_();
+  if (sheet.getLastRow() < 2) return jsonp_(e, { ok: true, state: emptyState_(), updatedAt: "" });
+  const row = sheet.getRange(2, 1, 1, 3).getValues()[0];
+  const state = safeParse_(row[1] || "{}", emptyState_());
+  return jsonp_(e, { ok: true, state: state, updatedAt: row[2] || state.updatedAt || "" });
 }
 
 function doPost(e) {
-  if (!isAuthorized_(e)) {
-    return text_({ ok: false, error: "Unauthorized" });
-  }
-
+  if (!isAuthorized_(e)) return text_({ ok: false, error: "Unauthorized" });
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
-    const payload = safeParse_(e.parameter.payload || "{}");
-    const workoutSheet = getSheet_(WORKOUT_SHEET_NAME, WORKOUT_HEADERS);
-    const cycleNotesSheet = getSheet_(CYCLE_NOTES_SHEET_NAME, CYCLE_NOTE_HEADERS);
-    dedupeSheet_(workoutSheet);
-    dedupeSheet_(cycleNotesSheet);
-
-    if (payload.records) {
-      upsertWorkouts_(workoutSheet, payload.records.workouts || []);
-      upsertCycleNotes_(cycleNotesSheet, payload.records.cycleNotes || []);
-    } else {
-      const records = stateToRecords_(payload.state || {}, payload.updatedAt || new Date().toISOString());
-      upsertWorkouts_(workoutSheet, records.workouts);
-      upsertCycleNotes_(cycleNotesSheet, records.cycleNotes);
-    }
-
-    return text_({ ok: true, storageMode: "rows" });
+    clearOldTrackerDataOnce_();
+    const payload = safeParse_(e.parameter.payload || "{}", {});
+    const state = sanitizeState_(payload.state);
+    const sheet = getStateSheet_();
+    if (sheet.getLastRow() > 1) sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).clearContent();
+    sheet.getRange(2, 1, 1, 3).setValues([[payload.appVersion || "kineto-v1", JSON.stringify(state), state.updatedAt || new Date().toISOString()]]);
+    return text_({ ok: true });
   } finally {
     lock.releaseLock();
   }
 }
 
-function rowsToState_(workoutSheet, cycleNotesSheet) {
-  const state = {
-    completed: {},
-    notes: {},
-    updatedAt: "",
-  };
-  let hasRecords = false;
-
-  readRows_(workoutSheet).forEach((row) => {
-    const id = row[0];
-    if (!id) return;
-    hasRecords = true;
-    const completed = row[7] === true || String(row[7]).toUpperCase() === "TRUE";
-    const sessionNote = row[8] || "";
-    const updatedAt = row[9] || "";
-
-    state.completed[id] = completed;
-    if (sessionNote) state.notes[id] = { session: sessionNote };
-    state.updatedAt = newest_(state.updatedAt, updatedAt);
-  });
-
-  readRows_(cycleNotesSheet).forEach((row) => {
-    const id = row[0];
-    if (!id) return;
-    hasRecords = true;
-    const note = {
-      energy: row[3] || "",
-      soreness: row[4] || "",
-      best: row[5] || "",
-      restricted: row[6] || "",
-      range: row[7] || "",
-    };
-    const updatedAt = row[8] || "";
-
-    if (Object.values(note).some(Boolean)) state.notes[id] = note;
-    state.updatedAt = newest_(state.updatedAt, updatedAt);
-  });
-
-  return { state, updatedAt: state.updatedAt, hasRecords };
+// Run this once from Apps Script if you want to clear the old rows immediately,
+// before the first save from the new Kineto app.
+function resetForKineto() {
+  OLD_DATA_SHEETS.forEach(clearRowsKeepHeader_);
+  const stateSheet = getStateSheet_();
+  if (stateSheet.getLastRow() > 1) stateSheet.getRange(2, 1, stateSheet.getLastRow() - 1, 3).clearContent();
+  PropertiesService.getScriptProperties().setProperty("KINETO_LEGACY_CLEARED", "true");
 }
 
-function stateToRecords_(state, updatedAt) {
-  const workouts = Object.keys(state.completed || {}).map((id) => ({
-    id,
-    planVersion: "",
-    cycle: "",
-    day: "",
-    title: "",
-    area: "",
-    workoutNumber: "",
-    completed: Boolean(state.completed[id]),
-    sessionNote: state.notes?.[id]?.session || "",
-    updatedAt,
-  }));
-
-  const cycleNotes = Object.keys(state.notes || {})
-    .filter((id) => !state.notes[id]?.session)
-    .map((id) => ({
-      id,
-      planVersion: "",
-      cycle: "",
-      energy: state.notes[id]?.energy || "",
-      soreness: state.notes[id]?.soreness || "",
-      best: state.notes[id]?.best || "",
-      restricted: state.notes[id]?.restricted || "",
-      range: state.notes[id]?.range || "",
-      updatedAt,
-    }));
-
-  return { workouts, cycleNotes };
+function clearOldTrackerDataOnce_() {
+  const properties = PropertiesService.getScriptProperties();
+  if (properties.getProperty("KINETO_LEGACY_CLEARED") === "true") return;
+  OLD_DATA_SHEETS.forEach(clearRowsKeepHeader_);
+  properties.setProperty("KINETO_LEGACY_CLEARED", "true");
 }
 
-function upsertWorkouts_(sheet, records) {
-  const rowById = getRowById_(sheet);
-  records.forEach((record) => {
-    if (!record.id) return;
-    const values = [
-      record.id,
-      record.planVersion || "",
-      record.cycle || "",
-      record.day || "",
-      record.title || "",
-      record.area || "",
-      record.workoutNumber || "",
-      Boolean(record.completed),
-      record.sessionNote || "",
-      record.updatedAt || new Date().toISOString(),
-    ];
-    upsertRow_(sheet, rowById, record.id, values);
-  });
+function clearRowsKeepHeader_(name) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
+  if (sheet && sheet.getLastRow() > 1) sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
 }
 
-function upsertCycleNotes_(sheet, records) {
-  const rowById = getRowById_(sheet);
-  records.forEach((record) => {
-    if (!record.id) return;
-    const values = [
-      record.id,
-      record.planVersion || "",
-      record.cycle || "",
-      record.energy || "",
-      record.soreness || "",
-      record.best || "",
-      record.restricted || "",
-      record.range || "",
-      record.updatedAt || new Date().toISOString(),
-    ];
-    upsertRow_(sheet, rowById, record.id, values);
-  });
-}
-
-function upsertRow_(sheet, rowById, id, values) {
-  const rowNumber = rowById[id];
-  if (rowNumber) {
-    sheet.getRange(rowNumber, 1, 1, values.length).setValues([values]);
-  } else {
-    sheet.appendRow(values);
-    rowById[id] = sheet.getLastRow();
-  }
-}
-
-function dedupeSheet_(sheet) {
-  const rows = readRows_(sheet);
-  if (rows.length < 2) return;
-
-  const latestRowsById = {};
-  const order = [];
-  rows.forEach((row) => {
-    const id = row[0];
-    if (!id) return;
-
-    if (!latestRowsById[id]) order.push(id);
-    const current = latestRowsById[id];
-    if (!current || Date.parse(row[row.length - 1] || "0") >= Date.parse(current[current.length - 1] || "0")) {
-      latestRowsById[id] = row;
-    }
-  });
-
-  const uniqueRows = order.map((id) => latestRowsById[id]);
-  if (uniqueRows.length === rows.length) return;
-
-  sheet.getRange(2, 1, rows.length, sheet.getLastColumn()).clearContent();
-  if (uniqueRows.length) {
-    sheet.getRange(2, 1, uniqueRows.length, uniqueRows[0].length).setValues(uniqueRows);
-  }
-}
-
-function getRowById_(sheet) {
-  const rows = readRows_(sheet);
-  const rowById = {};
-  rows.forEach((row, index) => {
-    if (row[0]) rowById[row[0]] = index + 2;
-  });
-  return rowById;
-}
-
-function readRows_(sheet) {
-  const lastRow = sheet.getLastRow();
-  const lastColumn = sheet.getLastColumn();
-  if (lastRow < 2) return [];
-  return sheet.getRange(2, 1, lastRow - 1, lastColumn).getValues();
-}
-
-function getSheet_(name, headers) {
+function getStateSheet_() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = spreadsheet.getSheetByName(name);
-
-  if (!sheet) {
-    sheet = spreadsheet.insertSheet(name);
-  }
-
-  ensureHeaders_(sheet, headers);
+  let sheet = spreadsheet.getSheetByName(STATE_SHEET_NAME);
+  if (!sheet) sheet = spreadsheet.insertSheet(STATE_SHEET_NAME);
+  if (sheet.getLastRow() === 0) sheet.getRange(1, 1, 1, STATE_HEADERS.length).setValues([STATE_HEADERS]);
   return sheet;
 }
 
-function ensureHeaders_(sheet, headers) {
-  const current = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
-  const needsHeader = headers.some((header, index) => current[index] !== header);
-  if (needsHeader) {
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-    sheet.setFrozenRows(1);
-    sheet.autoResizeColumns(1, headers.length);
-  }
-}
-
-function getLegacyState_() {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = spreadsheet.getSheetByName(LEGACY_SHEET_NAME);
-  if (!sheet) return { state: {}, updatedAt: "" };
-
-  const stateJson = sheet.getRange("B2").getValue();
-  const updatedAt = sheet.getRange("B1").getValue();
+function sanitizeState_(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const levels = source.levels && typeof source.levels === "object" ? source.levels : {};
+  const completed = source.completed && typeof source.completed === "object" ? source.completed : {};
   return {
-    state: safeParse_(stateJson),
-    updatedAt: updatedAt || "",
+    levels: {
+      flexibility: validLevel_(levels.flexibility) ? levels.flexibility : "beginner",
+      backbend: validLevel_(levels.backbend) ? levels.backbend : "beginner",
+    },
+    selections: source.selections && typeof source.selections === "object" ? source.selections : {},
+    completed: completed,
+    updatedAt: source.updatedAt || new Date().toISOString(),
   };
 }
 
-function newest_(left, right) {
-  const leftTime = Date.parse(left || "0") || 0;
-  const rightTime = Date.parse(right || "0") || 0;
-  return rightTime > leftTime ? right : left;
-}
-
-function isAuthorized_(e) {
-  if (!TOKEN) return true;
-  return e.parameter.token === TOKEN;
-}
-
-function jsonp_(e, data) {
-  const callback = e.parameter.callback || "callback";
-  return ContentService
-    .createTextOutput(`${callback}(${JSON.stringify(data)});`)
-    .setMimeType(ContentService.MimeType.JAVASCRIPT);
-}
-
-function text_(data) {
-  return ContentService
-    .createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.TEXT);
-}
-
-function safeParse_(value) {
-  try {
-    return JSON.parse(value || "{}");
-  } catch (error) {
-    return {};
-  }
-}
+function validLevel_(value) { return ["beginner", "intermediate", "advanced"].indexOf(value) !== -1; }
+function emptyState_() { return { levels: { flexibility: "beginner", backbend: "beginner" }, selections: {}, completed: {}, updatedAt: "" }; }
+function safeParse_(value, fallback) { try { return JSON.parse(value); } catch (error) { return fallback; } }
+function isAuthorized_(e) { return !TOKEN || (e && e.parameter && e.parameter.token === TOKEN); }
+function text_(payload) { return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON); }
+function jsonp_(e, payload) { const callback = (e && e.parameter && e.parameter.callback) || "callback"; return ContentService.createTextOutput(callback + "(" + JSON.stringify(payload) + ");").setMimeType(ContentService.MimeType.JAVASCRIPT); }

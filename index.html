@@ -1,114 +1,25 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Intermediate Flexibility Tracker</title>
-    <link rel="stylesheet" href="styles.css?v=20260714-workout-cards">
-    <script src="config.js"></script>
-    <script src="app.js?v=20260726-sunday-start" defer></script>
-  </head>
-  <body>
-    <header class="app-header">
-      <div>
-        <p class="eyebrow">Kinetoflex ballet support</p>
-        <h1>Intermediate Flexibility Tracker</h1>
-      </div>
-      <button class="secondary-button" id="resetProgress" type="button">Reset progress</button>
-    </header>
-
-    <main>
-      <section class="summary-band" aria-labelledby="summaryTitle">
-        <div>
-          <h2 id="summaryTitle">4-week rolling plan</h2>
-          <p>
-            Track the intermediate level Hip Mobility, Front Split, Middle Split, and Pancake workouts.
-            Train flexibility daily, one exercise per day except Sunday which will take two exercises.
-          </p>
-        </div>
-        <div class="total-progress" aria-label="Total completed workouts">
-          <div class="total-progress-count">
-            <span id="totalCompleted">0</span>
-            <span class="total-progress-separator">/</span>
-            <span id="totalPlanned">32</span>
-          </div>
-          <span class="total-progress-label">workouts complete</span>
-        </div>
-      </section>
-
-      <section class="sync-band" aria-label="Sync status">
-        <p id="syncStatus">Checking sync status...</p>
-        <button class="plain-button" id="syncNow" type="button">Sync now</button>
-      </section>
-
-      <section class="progress-section" aria-labelledby="progressTitle">
-        <h2 id="progressTitle">Area progress</h2>
-        <div class="progress-grid" id="progressGrid"></div>
-      </section>
-
-      <section class="controls" aria-label="Tracker controls">
-        <label>
-          Jump to week
-          <select id="weekJump"></select>
-        </label>
-        <label>
-          View
-          <select id="viewFilter">
-            <option value="all">All weeks</option>
-            <option value="current">Current week</option>
-            <option value="incomplete">Incomplete weeks</option>
-          </select>
-        </label>
-      </section>
-
-      <div id="weeks"></div>
-    </main>
-
-    <template id="weekTemplate">
-      <article class="week" data-week>
-        <div class="week-header">
-          <div>
-            <p class="week-label" data-week-label></p>
-            <h2 data-title></h2>
-            <p data-areas></p>
-          </div>
-          <div class="week-progress" aria-label="Week progress">
-            <span data-week-count>0/8</span>
-            <span>complete</span>
-          </div>
-        </div>
-
-        <details class="workout-panel" data-workout-panel open>
-          <summary data-workout-summary>Weekly workouts</summary>
-          <div class="day-list" data-days></div>
-        </details>
-
-        <details class="notes-panel">
-          <summary>Week notes</summary>
-          <div class="notes-grid">
-            <label>
-              Energy
-              <textarea data-note="energy" placeholder="Energy level"></textarea>
-            </label>
-            <label>
-              Soreness
-              <textarea data-note="soreness" placeholder="Soreness level"></textarea>
-            </label>
-            <label>
-              Best area
-              <textarea data-note="best" placeholder="What felt best"></textarea>
-            </label>
-            <label>
-              Restricted area
-              <textarea data-note="restricted" placeholder="What felt tight"></textarea>
-            </label>
-          </div>
-          <label class="wide-note">
-            Range, comfort, or pain notes
-            <textarea data-note="range" placeholder="Anything pinchy, sharp, painful, easier, or more controlled"></textarea>
-          </label>
-        </details>
-      </article>
-    </template>
-  </body>
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#315f7f">
+  <title>Kineto Training Tracker</title>
+  <link rel="stylesheet" href="styles.css?v=20260903-kineto"><script src="config.js"></script><script src="app.js?v=20260903-kineto" defer></script>
+</head>
+<body>
+  <header class="app-header"><div><p class="eyebrow">Ballet conditioning</p><h1>Kineto</h1><p class="header-subtitle">Your daily training, all in one place.</p></div><button class="secondary-button" id="resetProgress" type="button">Reset progress</button></header>
+  <main>
+    <nav class="view-tabs" aria-label="Main views"><button class="view-tab is-active" type="button" data-view="today" aria-current="page">Today</button><button class="view-tab" type="button" data-view="programs">Programs</button></nav>
+    <section id="todayView" class="view" aria-labelledby="todayTitle">
+      <div class="today-hero"><div><p class="date-label" id="todayDate"></p><h2 id="todayTitle">Today’s training</h2><p id="todayMessage">Complete one session from each program.</p></div><div class="daily-progress" aria-label="Today's completed programs"><strong id="todayCompleted">0</strong><span>/</span><span id="todayPlanned">5</span><small>complete</small></div></div>
+      <div class="program-list" id="todayPrograms"></div>
+    </section>
+    <section id="programsView" class="view" aria-labelledby="programsTitle" hidden>
+      <div class="section-heading"><div><p class="date-label">Your routine</p><h2 id="programsTitle">Programs</h2><p>Choose workouts and track your six-week cycle.</p></div><label class="cycle-control" for="weekJump"><span>View week</span><select id="weekJump"><option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option><option value="5">Week 5</option><option value="6">Week 6</option></select></label></div>
+      <div class="program-grid" id="programGrid"></div>
+    </section>
+    <section class="sync-band" aria-label="Sync status"><p id="syncStatus">Checking sync status…</p><button class="plain-button" id="syncNow" type="button">Sync now</button></section>
+  </main>
+  <template id="todayProgramTemplate"><article class="today-card"><label class="today-check"><input type="checkbox" data-complete><span class="custom-check" aria-hidden="true"></span><span class="today-card-copy"><span class="program-kicker" data-program-number></span><strong data-program-name></strong><span data-session-name></span></span></label><div class="today-card-actions"><label class="workout-control" data-workout-control hidden><span>Workout</span><select data-workout-select></select></label><span class="level-pill" data-level></span></div></article></template>
+  <template id="programCardTemplate"><article class="program-card"><div class="program-card-header"><div><p class="program-kicker" data-program-number></p><h3 data-program-name></h3></div><div class="program-card-controls"><label class="workout-control" data-program-workout-control hidden><span data-program-workout-label>Workout</span><select data-program-workout-select></select></label></div></div><div class="program-progress-copy"><span data-week-label>Week 1 progress</span><strong data-progress-count>0/7</strong></div><div class="progress-track" aria-hidden="true"><span data-progress-bar></span></div><div class="week-days" data-week-days></div></article></template>
+</body>
 </html>

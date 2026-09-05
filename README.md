@@ -1,31 +1,17 @@
-# Ballet Kinetoflex Flexibility Tracker
+# Kineto
 
-Intermediate and Beginner flexibility trackers for 4-week Kinetoflex ballet support plans.
+A unified ballet conditioning tracker for five daily programs, in this order:
 
-## Web App
+1. Flexibility (Beginner, Intermediate, or Advanced)
+2. Turnout
+3. Pirouette
+4. Foot & Ankle
+5. Backbend (Beginner, Intermediate, or Advanced)
 
-Open the live apps here:
+The app intentionally contains no session notes, weekly notes, or History view. Progress is stored locally and can sync to the existing Google Sheet through the Apps Script backend.
 
-- Intermediate: https://selena-ec.github.io/kinetoflex-flexibility/
-- Beginner: https://selena-ec.github.io/kinetoflex-flexibility/beginner/
+## Publish
 
-## Plan
+The intended GitHub Pages URL is `https://selena-ec.github.io/kineto/`. Rename the GitHub repository to `kineto`, keep Pages configured for the default branch, and deploy the updated Apps Script code. The old `/beginner/` path redirects to the unified app.
 
-- 4 weeks
-- 32 tracked flexibility exercises
-- 4 weekly Sun-Sat plans
-- Daily flexibility workouts
-- 2 exercises on Sunday
-- 4 focus areas: Hip Mobility, Front Split, Middle Split, Pancake
-- Google Sheets sync support through Apps Script
-
-## Files
-
-- `index.html` - app shell
-- `styles.css` - app styling
-- `app.js` - tracker logic and sync behavior
-- `config.js` - Google Apps Script endpoint configuration
-- `google-apps-script.gs` - Google Sheets backend
-- `intermediate-flexibility-rolling-plan.md` - plan details
-- `google-sheets-backend-setup.md` - Intermediate backend setup notes
-- `beginner/` - Beginner app clone with separate storage and backend setup
+Before using the new app, run `resetForKineto` once in Apps Script. This clears old tracker data while preserving sheet tabs and header rows. The first save also performs this cleanup automatically if it has not already run.
