@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#315f7f" />
     <title>Kineto Training Tracker</title>
-    <link rel="stylesheet" href="styles.css?v=20260905-cleanup" />
+    <link rel="stylesheet" href="styles.css?v=20260905-history" />
     <script src="config.js"></script>
-    <script src="app.js?v=20260905-cleanup" type="module"></script>
+    <script src="app.js?v=20260905-history" type="module"></script>
   </head>
   <body>
     <header class="app-header">
@@ -94,16 +94,28 @@
           <strong data-program-name></strong>
         </div>
         <div class="workout-choice">
-          <select data-workout-select>
-            <option value="">Choose a workout…</option>
-          </select>
-          <span class="level-pill" data-level hidden></span>
+          <div class="workout-select-line">
+            <select data-workout-select>
+              <option value="">Choose a workout…</option>
+            </select>
+            <span class="level-pill" data-level hidden></span>
+          </div>
+          <div class="workout-context" data-workout-context hidden>
+            <span data-last-session></span>
+            <strong data-suggestion></strong>
+            <button
+              class="history-toggle"
+              type="button"
+              data-history-toggle
+            ></button>
+          </div>
         </div>
         <label class="complete-control">
           <input type="checkbox" data-complete />
           <span class="complete-circle" aria-hidden="true"></span>
           <span class="sr-only" data-complete-label></span>
         </label>
+        <div class="workout-history" data-workout-history hidden></div>
       </div>
     </template>
   </body>

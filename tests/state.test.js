@@ -5,10 +5,14 @@ import { cycleWeek, PLAN_START } from "../src/dates.js";
 import {
   completedInWeek,
   completedOnDay,
+  completedWorkoutSessions,
   createEmptyState,
   entryKey,
   normalizeState,
+  latestRelatedSession,
   SCHEMA_VERSION,
+  suggestedRelatedWorkout,
+  workoutFamily,
 } from "../src/state.js";
 
 test("catalogue preserves program order and workout counts", () => {
@@ -97,4 +101,27 @@ test("cycle dates begin on September 6 and stop at Week 8", () => {
 test("level badges are derived from workout names", () => {
   assert.equal(workoutLevel("Front Split Advanced - Workout 1"), "advanced");
   assert.equal(workoutLevel("Workout A"), null);
+});
+
+test("workout history groups related sessions and suggests the next workout", () => {
+  const state = createEmptyState();
+  const workout1 = "Pancake Beginner - Workout 1";
+  const workout2 = "Pancake Beginner - Workout 2";
+  const first = entryKey("flexibility", 1, 1);
+  state.selections[first] = workout1;
+  state.completed[first] = true;
+
+  assert.equal(workoutFamily(workout1), "Pancake Beginner");
+  assert.deepEqual(completedWorkoutSessions(state, "flexibility", workout1), [
+    { week: 1, day: 1, key: first },
+  ]);
+  assert.deepEqual(latestRelatedSession(state, "flexibility", workout2, 1, 3), {
+    week: 1,
+    day: 1,
+    workout: workout1,
+  });
+  assert.equal(
+    suggestedRelatedWorkout(WORKOUTS.flexibility, workout1),
+    workout2,
+  );
 });
