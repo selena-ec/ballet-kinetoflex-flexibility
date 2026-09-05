@@ -24,7 +24,9 @@ if (/textarea|session note|weekly notes|week notes|history view/.test(combined))
 if (!backend.includes("clearOldTrackerDataOnce_")) throw new Error("Sheet reset migration is missing");
 if (!backend.includes("KinetoState")) throw new Error("Unified Sheet state is missing");
 if (!app.includes("PLAN_START=new Date(2026,8,6)")) throw new Error("Week 1 must start on September 6, 2026");
-if (!html.includes('<option value="6">Week 6</option>')) throw new Error("The six-week cycle selector is incomplete");
+if (!app.includes("PLAN_WEEKS=8")) throw new Error("The eight-week cycle is missing");
+if (html.includes('id="weekJump"')) throw new Error("The obsolete single-week selector remains");
+if (!html.includes("data-eight-weeks")) throw new Error("The eight-week progress grid is missing");
 if (!html.includes("data-program-workout-select")) throw new Error("Programs view workout dropdown is missing");
 if (html.includes("data-level-control")) throw new Error("Programs view must not show level selectors");
 if (html.includes("data-today-level-control")) throw new Error("Redundant Backbend level selector remains");

@@ -1,4 +1,4 @@
-const APP_VERSION="kineto-v9",STORAGE_KEY="kineto.tracker.v1",PLAN_WEEKS=6,PLAN_START=new Date(2026,8,6);
+const APP_VERSION="kineto-v10",STORAGE_KEY="kineto.tracker.v1",PLAN_WEEKS=8,PLAN_START=new Date(2026,8,6);
 const DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],LEVELS=["beginner","intermediate","advanced"];
 const CLOUD_CONFIG=window.FLEX_TRACKER_CONFIG||{},CLOUD_URL=(CLOUD_CONFIG.GOOGLE_APPS_SCRIPT_URL||"").trim(),CLOUD_TOKEN=CLOUD_CONFIG.SYNC_TOKEN||"",CLOUD_ENABLED=Boolean(CLOUD_URL);
 const programs=[
@@ -14,13 +14,11 @@ const pirouetteWorkouts=["Week 1 & 2 - Workout 1","Week 1 & 2 - Workout 2","Week
 const footAnkleWorkouts=["Week 1 & 2 - Workout 1","Week 1 & 2 - Workout 2","Week 3 & 4 - Workout 1","Week 3 & 4 - Workout 2","Week 5 & 6 - Workout 1","Week 5 & 6 - Workout 2","Pre-Pointe Foundations Plan Booster"];
 const backbendWorkouts=["Beginner - Week 1 & 2, Workout 1","Beginner - Week 1 & 2, Workout 2","Beginner - Week 3 & 4, Workout 1","Beginner - Week 3 & 4, Workout 2","Beginner - Week 5 & 6, Workout 1","Beginner - Week 5 & 6, Workout 2","Intermediate - Week 1 & 2, Workout 1","Intermediate - Week 1 & 2, Workout 2","Intermediate - Week 3 & 4, Workout 1","Intermediate - Week 3 & 4, Workout 2","Intermediate - Week 5 & 6, Workout 1","Intermediate - Week 5 & 6, Workout 2","Advanced - Week 1 & 2, Workout 1","Advanced - Week 1 & 2, Workout 2","Advanced - Week 1 & 2, Workout 3","Advanced - Week 3 & 4, Workout 1","Advanced - Week 3 & 4, Workout 2","Advanced - Week 3 & 4, Workout 3","Advanced - Week 5 & 6, Workout 1","Advanced - Week 5 & 6, Workout 2","Advanced - Week 5 & 6, Workout 3",'"The Needle" Training Plan - Workout A','"The Needle" Training Plan - Workout B','"The Needle" Training Plan - Workout C',"Wrist Mobility & Strength - Workout A","Wrist Mobility & Strength - Workout B"];
 const workoutOptions={flexibility:flexibilityWorkouts,turnout:turnoutWorkouts,pirouette:pirouetteWorkouts,"foot-ankle":footAnkleWorkouts,backbend:backbendWorkouts};
-let state=loadState(),selectedWeek=cycleWeek(new Date()),saveTimer=null;
+let state=loadState(),saveTimer=null;
 const $=s=>document.querySelector(s),todayPrograms=$("#todayPrograms"),programGrid=$("#programGrid"),todayTemplate=$("#todayProgramTemplate"),cardTemplate=$("#programCardTemplate"),syncStatus=$("#syncStatus"),syncNow=$("#syncNow");
 
-$("#todayDate").textContent=new Intl.DateTimeFormat(undefined,{weekday:"long",month:"long",day:"numeric"}).format(new Date());
-$("#weekJump").value=String(selectedWeek);
+$("#todayDate").textContent=new Intl.DateTimeFormat(undefined,{weekday:"long"}).format(new Date());
 document.querySelectorAll("[data-view]").forEach(button=>button.addEventListener("click",()=>selectView(button.dataset.view)));
-$("#weekJump").addEventListener("change",event=>{selectedWeek=Number(event.target.value);renderPrograms()});
 $("#resetProgress").addEventListener("click",()=>{if(!confirm("Reset all Kineto progress? Your level choices will stay the same."))return;state.completed={};saveState();render()});
 syncNow.addEventListener("click",()=>loadCloudState(true));
 render();loadCloudState(false);
@@ -34,7 +32,7 @@ function renderToday(){
   const now=new Date(),day=now.getDay(),week=cycleWeek(now),ids=[];todayPrograms.replaceChildren();
   programs.forEach((program,index)=>{
     const fragment=todayTemplate.content.cloneNode(true),id=workoutId(program,week,day),box=fragment.querySelector("[data-complete]");ids.push(id);
-    fragment.querySelector("[data-program-number]").textContent=`Program ${index+1}`;fragment.querySelector("[data-program-name]").textContent=program.name;fragment.querySelector("[data-session-name]").textContent=sessionName(program,week,day);
+    fragment.querySelector("[data-program-number]").textContent=`Program ${index+1}`;fragment.querySelector("[data-program-name]").textContent=program.name;
     const workoutControl=fragment.querySelector("[data-workout-control]"),workoutSelect=fragment.querySelector("[data-workout-select]"),options=workoutOptions[program.id];if(options){workoutControl.hidden=false;workoutSelect.setAttribute("aria-label",`${program.name} workout`);options.forEach(name=>workoutSelect.add(new Option(name,name)));workoutSelect.value=selectedWorkout(program,week,day);workoutSelect.addEventListener("change",()=>{state.selections[selectionKey(program,week,day)]=workoutSelect.value;updateLevelFromWorkout(program,workoutSelect.value);saveState();render()})}
     const pill=fragment.querySelector("[data-level]");if(program.levels)pill.textContent=state.levels[program.id];else pill.hidden=true;
     box.checked=Boolean(state.completed[id]);box.setAttribute("aria-label",`Mark ${program.name} complete`);box.addEventListener("change",()=>{state.completed[id]=box.checked;saveState();render()});todayPrograms.append(fragment);
@@ -45,10 +43,10 @@ function renderToday(){
 function renderPrograms(){
   programGrid.replaceChildren();
   programs.forEach((program,index)=>{
-    const fragment=cardTemplate.content.cloneNode(true);fragment.querySelector("[data-program-number]").textContent=`Program ${index+1}`;fragment.querySelector("[data-program-name]").textContent=program.name;fragment.querySelector("[data-week-label]").textContent=`Week ${selectedWeek} progress`;
-    const programWorkoutControl=fragment.querySelector("[data-program-workout-control]"),programWorkoutSelect=fragment.querySelector("[data-program-workout-select]"),options=workoutOptions[program.id],day=new Date().getDay();if(options){programWorkoutControl.hidden=false;fragment.querySelector("[data-program-workout-label]").textContent=`${DAYS[day]} workout`;programWorkoutSelect.setAttribute("aria-label",`${program.name} ${DAYS[day]} workout`);options.forEach(name=>programWorkoutSelect.add(new Option(name,name)));programWorkoutSelect.value=selectedWorkout(program,selectedWeek,day);programWorkoutSelect.addEventListener("change",()=>{state.selections[selectionKey(program,selectedWeek,day)]=programWorkoutSelect.value;updateLevelFromWorkout(program,programWorkoutSelect.value);saveState();render()})}
-    const ids=DAYS.map((_,day)=>workoutId(program,selectedWeek,day)),done=ids.filter(id=>state.completed[id]).length;fragment.querySelector("[data-progress-count]").textContent=`${done}/7`;fragment.querySelector("[data-progress-bar]").style.width=`${done/7*100}%`;
-    const days=fragment.querySelector("[data-week-days]");DAYS.forEach((name,day)=>{const item=document.createElement("span");item.className="day-dot";item.textContent=name;item.title=sessionName(program,selectedWeek,day);if(state.completed[ids[day]])item.classList.add("is-complete");if(selectedWeek===cycleWeek(new Date())&&day===new Date().getDay())item.classList.add("is-today");days.append(item)});programGrid.append(fragment);
+    const fragment=cardTemplate.content.cloneNode(true),now=new Date(),currentWeek=cycleWeek(now),currentDay=now.getDay();fragment.querySelector("[data-program-number]").textContent=`Program ${index+1}`;fragment.querySelector("[data-program-name]").textContent=program.name;
+    const programWorkoutControl=fragment.querySelector("[data-program-workout-control]"),programWorkoutSelect=fragment.querySelector("[data-program-workout-select]"),options=workoutOptions[program.id];if(options){programWorkoutControl.hidden=false;fragment.querySelector("[data-program-workout-label]").textContent=`${DAYS[currentDay]} workout`;programWorkoutSelect.setAttribute("aria-label",`${program.name} ${DAYS[currentDay]} workout`);options.forEach(name=>programWorkoutSelect.add(new Option(name,name)));programWorkoutSelect.value=selectedWorkout(program,currentWeek,currentDay);programWorkoutSelect.addEventListener("change",()=>{state.selections[selectionKey(program,currentWeek,currentDay)]=programWorkoutSelect.value;updateLevelFromWorkout(program,programWorkoutSelect.value);saveState();render()})}
+    const allIds=[];for(let week=1;week<=PLAN_WEEKS;week++)DAYS.forEach((_,day)=>allIds.push(workoutId(program,week,day)));const done=allIds.filter(id=>state.completed[id]).length;fragment.querySelector("[data-progress-count]").textContent=`${done}/${PLAN_WEEKS*7}`;fragment.querySelector("[data-progress-bar]").style.width=`${done/(PLAN_WEEKS*7)*100}%`;
+    const grid=fragment.querySelector("[data-eight-weeks]"),corner=document.createElement("span");corner.setAttribute("aria-hidden","true");grid.append(corner);DAYS.forEach(name=>{const label=document.createElement("span");label.className="day-heading";label.textContent=name.slice(0,1);grid.append(label)});for(let week=1;week<=PLAN_WEEKS;week++){const weekLabel=document.createElement("strong");weekLabel.className="week-label";weekLabel.textContent=`Week ${week}`;grid.append(weekLabel);DAYS.forEach((name,day)=>{const id=workoutId(program,week,day),item=document.createElement("span");item.className="day-spot";item.title=`Week ${week}, ${name}: ${sessionName(program,week,day)}`;item.setAttribute("aria-label",item.title+(state.completed[id]?", complete":", not complete"));if(state.completed[id])item.classList.add("is-complete");if(week===currentWeek&&day===currentDay)item.classList.add("is-today");grid.append(item)})}programGrid.append(fragment);
   });
 }
 
