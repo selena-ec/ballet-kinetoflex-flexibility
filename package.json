@@ -1,0 +1,1 @@
+{"name":"kineto","private":true,"scripts":{"dev":"vite","test":"node verify-plan.js"},"devDependencies":{"vite":"^7.1.5"}}

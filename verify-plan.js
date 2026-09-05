@@ -26,8 +26,10 @@ if (!backend.includes("KinetoState")) throw new Error("Unified Sheet state is mi
 if (!app.includes("PLAN_START=new Date(2026,8,6)")) throw new Error("Week 1 must start on September 6, 2026");
 if (!app.includes("PLAN_WEEKS=8")) throw new Error("The eight-week cycle is missing");
 if (html.includes('id="weekJump"')) throw new Error("The obsolete single-week selector remains");
-if (!html.includes("data-eight-weeks")) throw new Error("The eight-week progress grid is missing");
-if (!html.includes("data-program-workout-select")) throw new Error("Programs view workout dropdown is missing");
+if (!html.includes("data-day-tabs")) throw new Error("The day-first selector is missing");
+if (!html.includes("data-workout-select")) throw new Error("Per-day workout dropdown is missing");
+if (!app.includes('return`${program.id}:week-${week}:day-${day}`')) throw new Error("Week/day/program storage key is missing");
+if (!app.includes('new Option(name,name)') || !html.includes('<option value="">Choose a workout…</option>')) throw new Error("Workout dropdowns must default to blank");
 if (html.includes("data-level-control")) throw new Error("Programs view must not show level selectors");
 if (html.includes("data-today-level-control")) throw new Error("Redundant Backbend level selector remains");
 if ((app.match(/Workout [12]\"/g) || []).length < 24) throw new Error("All 24 flexibility workouts must be present");
