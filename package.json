@@ -1,1 +1,18 @@
-{"name":"kineto","private":true,"scripts":{"dev":"vite","test":"node verify-plan.js"},"devDependencies":{"vite":"^7.1.5"}}
+{
+  "name": "kineto",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "test": "node --test",
+    "check": "npm run format:check && npm run lint && npm test"
+  },
+  "devDependencies": {
+    "eslint": "^10.0.0",
+    "prettier": "^3.6.2",
+    "vite": "^7.1.5"
+  }
+}

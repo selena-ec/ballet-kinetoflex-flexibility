@@ -1,6 +1,110 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#315f7f"><title>Kineto Training Tracker</title><link rel="stylesheet" href="styles.css?v=20260904-day-first"><script src="config.js"></script><script src="app.js?v=20260904-day-first" defer></script></head><body>
-<header class="app-header"><div><p class="eyebrow">Ballet conditioning</p><h1>Kineto</h1><p class="header-subtitle">Five programs. One focused practice each day.</p></div><button class="secondary-button" id="resetProgress" type="button">Reset progress</button></header>
-<main><section class="sync-band" aria-label="Sync status"><p id="syncStatus">Checking sync status…</p><button class="plain-button" id="syncNow" type="button">Sync now</button></section><section class="tracker" aria-labelledby="trackerTitle"><div class="tracker-heading"><div><p class="date-label">Eight-week routine</p><h2 id="trackerTitle">Weekly training</h2><p>Select a day, choose its workouts, then mark each one complete.</p></div><div class="week-summary"><strong id="weekCompleted">0</strong><span>/ 35</span><small>complete this week</small></div></div><div id="weekList" class="week-list"></div></section></main>
-<template id="weekTemplate"><article class="week-panel"><button class="week-toggle" type="button" data-week-toggle aria-expanded="false"><span>Week <span data-week-number></span></span><span class="week-count" data-week-count></span><span class="chevron" aria-hidden="true">⌄</span></button><div class="week-content" data-week-content hidden><p class="selection-prompt">Select a day to edit</p><div class="day-tabs" data-day-tabs role="tablist" aria-label="Choose a day"></div><div class="selected-day-banner"><strong>Selected day: <span data-selected-day></span></strong><span>Choose this day’s workouts, then check the circles when complete.</span></div><div class="workout-table"><div class="table-heading"><span>Program</span><span data-workout-heading></span><span>Done</span></div><div data-program-rows></div></div></div></article></template>
-<template id="programRowTemplate"><div class="program-row"><div class="program-identity"><span class="program-number" data-program-number></span><strong data-program-name></strong></div><div class="workout-choice"><select data-workout-select><option value="">Choose a workout…</option></select><span class="level-pill" data-level hidden></span></div><label class="complete-control"><input type="checkbox" data-complete><span class="complete-circle" aria-hidden="true"></span><span class="sr-only" data-complete-label></span></label></div></template>
-</body></html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#315f7f" />
+    <title>Kineto Training Tracker</title>
+    <link rel="stylesheet" href="styles.css?v=20260905-cleanup" />
+    <script src="config.js"></script>
+    <script src="app.js?v=20260905-cleanup" type="module"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Ballet conditioning</p>
+        <h1>Kineto</h1>
+        <p class="header-subtitle">
+          Five programs. One focused practice each day.
+        </p>
+      </div>
+      <button class="secondary-button" id="resetProgress" type="button">
+        Reset progress
+      </button>
+    </header>
+
+    <main>
+      <section class="sync-band" aria-label="Sync status">
+        <p id="syncStatus" aria-live="polite">Checking sync status…</p>
+        <button class="plain-button" id="syncNow" type="button">
+          Sync now
+        </button>
+      </section>
+
+      <section class="tracker" aria-labelledby="trackerTitle">
+        <div class="tracker-heading">
+          <div>
+            <p class="date-label">Eight-week routine</p>
+            <h2 id="trackerTitle">Weekly training</h2>
+            <p>
+              Select a day, choose its workouts, then mark each one complete.
+            </p>
+          </div>
+          <div class="week-summary">
+            <strong id="weekCompleted">0</strong><span>/ 35</span>
+            <small>complete this week</small>
+          </div>
+        </div>
+        <div id="weekList" class="week-list"></div>
+      </section>
+    </main>
+
+    <template id="weekTemplate">
+      <article class="week-panel">
+        <button
+          class="week-toggle"
+          type="button"
+          data-week-toggle
+          aria-expanded="false"
+        >
+          <span>Week <span data-week-number></span></span>
+          <span class="week-count" data-week-count></span>
+          <span class="chevron" aria-hidden="true">⌄</span>
+        </button>
+        <div class="week-content" data-week-content hidden>
+          <p class="selection-prompt">Select a day to edit</p>
+          <div
+            class="day-tabs"
+            data-day-tabs
+            role="group"
+            aria-label="Choose a day"
+          ></div>
+          <div class="selected-day-banner">
+            <strong>Selected day: <span data-selected-day></span></strong>
+            <span
+              >Choose this day’s workouts, then check the circles when
+              complete.</span
+            >
+          </div>
+          <div class="workout-table">
+            <div class="table-heading">
+              <span>Program</span><span data-workout-heading></span
+              ><span>Done</span>
+            </div>
+            <div data-program-rows></div>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <template id="programRowTemplate">
+      <div class="program-row">
+        <div class="program-identity">
+          <span class="program-number" data-program-number></span>
+          <strong data-program-name></strong>
+        </div>
+        <div class="workout-choice">
+          <select data-workout-select>
+            <option value="">Choose a workout…</option>
+          </select>
+          <span class="level-pill" data-level hidden></span>
+        </div>
+        <label class="complete-control">
+          <input type="checkbox" data-complete />
+          <span class="complete-circle" aria-hidden="true"></span>
+          <span class="sr-only" data-complete-label></span>
+        </label>
+      </div>
+    </template>
+  </body>
+</html>

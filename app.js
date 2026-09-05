@@ -1,25 +1,49 @@
-const APP_VERSION="kineto-v11",STORAGE_KEY="kineto.tracker.v1",PLAN_WEEKS=8,PLAN_START=new Date(2026,8,6);
-const DAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],LEVELS=["beginner","intermediate","advanced"];
-const CLOUD_CONFIG=window.FLEX_TRACKER_CONFIG||{},CLOUD_URL=(CLOUD_CONFIG.GOOGLE_APPS_SCRIPT_URL||"").trim(),CLOUD_TOKEN=CLOUD_CONFIG.SYNC_TOKEN||"",CLOUD_ENABLED=Boolean(CLOUD_URL);
-const programs=[{id:"flexibility",name:"Flexibility",levels:true},{id:"turnout",name:"Turnout",levels:false},{id:"pirouette",name:"Pirouette",levels:false},{id:"foot-ankle",name:"Foot & Ankle",levels:false},{id:"backbend",name:"Backbend",levels:true}];
-const flexibilityWorkouts=["Hip Mobility Beginner - Workout 1","Hip Mobility Beginner - Workout 2","Hip Mobility Intermediate - Workout 1","Hip Mobility Intermediate - Workout 2","Hip Mobility Advanced - Workout 1","Hip Mobility Advanced - Workout 2","Pancake Beginner - Workout 1","Pancake Beginner - Workout 2","Pancake Intermediate - Workout 1","Pancake Intermediate - Workout 2","Pancake Advanced - Workout 1","Pancake Advanced - Workout 2","Front Split Beginner - Workout 1","Front Split Beginner - Workout 2","Front Split Intermediate - Workout 1","Front Split Intermediate - Workout 2","Front Split Advanced - Workout 1","Front Split Advanced - Workout 2","Middle Split Beginner - Workout 1","Middle Split Beginner - Workout 2","Middle Split Intermediate - Workout 1","Middle Split Intermediate - Workout 2","Middle Split Advanced - Workout 1","Middle Split Advanced - Workout 2"];
-const turnoutWorkouts=["Week 1 & 2 - Workout 1","Week 1 & 2 - Workout 2","Week 3 & 4 - Workout 1","Week 3 & 4 - Workout 2","Week 5 & 6 - Workout 1","Week 5 & 6 - Workout 2"];
-const pirouetteWorkouts=["Week 1 & 2 - Workout 1","Week 1 & 2 - Workout 2","Week 3 & 4 - Workout 1","Week 3 & 4 - Workout 2","Week 5 & 6 - Workout 1","Week 5 & 6 - Workout 2","Workout A","Workout B","Workout C","Workout D"];
-const footAnkleWorkouts=["Week 1 & 2 - Workout 1","Week 1 & 2 - Workout 2","Week 3 & 4 - Workout 1","Week 3 & 4 - Workout 2","Week 5 & 6 - Workout 1","Week 5 & 6 - Workout 2","Pre-Pointe Foundations Plan Booster"];
-const backbendWorkouts=["Beginner - Week 1 & 2, Workout 1","Beginner - Week 1 & 2, Workout 2","Beginner - Week 3 & 4, Workout 1","Beginner - Week 3 & 4, Workout 2","Beginner - Week 5 & 6, Workout 1","Beginner - Week 5 & 6, Workout 2","Intermediate - Week 1 & 2, Workout 1","Intermediate - Week 1 & 2, Workout 2","Intermediate - Week 3 & 4, Workout 1","Intermediate - Week 3 & 4, Workout 2","Intermediate - Week 5 & 6, Workout 1","Intermediate - Week 5 & 6, Workout 2","Advanced - Week 1 & 2, Workout 1","Advanced - Week 1 & 2, Workout 2","Advanced - Week 1 & 2, Workout 3","Advanced - Week 3 & 4, Workout 1","Advanced - Week 3 & 4, Workout 2","Advanced - Week 3 & 4, Workout 3","Advanced - Week 5 & 6, Workout 1","Advanced - Week 5 & 6, Workout 2","Advanced - Week 5 & 6, Workout 3",'"The Needle" Training Plan - Workout A','"The Needle" Training Plan - Workout B','"The Needle" Training Plan - Workout C',"Wrist Mobility & Strength - Workout A","Wrist Mobility & Strength - Workout B"];
-const workoutOptions={flexibility:flexibilityWorkouts,turnout:turnoutWorkouts,pirouette:pirouetteWorkouts,"foot-ankle":footAnkleWorkouts,backbend:backbendWorkouts};
-let state=loadState(),saveTimer=null,openWeek=cycleWeek(new Date()),selectedDays={};
-const $=s=>document.querySelector(s),weekList=$("#weekList"),weekTemplate=$("#weekTemplate"),rowTemplate=$("#programRowTemplate"),syncStatus=$("#syncStatus"),syncNow=$("#syncNow");
-for(let week=1;week<=PLAN_WEEKS;week++)selectedDays[week]=week===openWeek?defaultDayForWeek(week):0;
-$("#resetProgress").addEventListener("click",()=>{if(!confirm("Reset all Kineto workout choices and progress?"))return;state=defaultState();saveState();render()});syncNow.addEventListener("click",()=>loadCloudState(true));render();loadCloudState(false);
-function defaultState(){return{levels:{flexibility:"beginner",backbend:"beginner"},selections:{},completed:{},updatedAt:""}}
-function loadState(){try{return normalizeState(JSON.parse(localStorage.getItem(STORAGE_KEY)))}catch{return defaultState()}}
-function normalizeState(value){const next=defaultState();if(!value||typeof value!=="object")return next;programs.filter(p=>p.levels).forEach(p=>{if(LEVELS.includes(value.levels?.[p.id]))next.levels[p.id]=value.levels[p.id]});if(value.selections&&typeof value.selections==="object")next.selections={...value.selections};if(value.completed&&typeof value.completed==="object")Object.entries(value.completed).forEach(([key,done])=>{if(!done)return;const match=key.match(/^([^:]+):(?:[^:]+:)?week-(\d+):day-(\d+)$/);if(match)next.completed[`${match[1]}:week-${match[2]}:day-${match[3]}`]=true});if(typeof value.updatedAt==="string")next.updatedAt=value.updatedAt;return next}
-function render(){weekList.replaceChildren();for(let week=1;week<=PLAN_WEEKS;week++)renderWeek(week);updateWeekSummary()}
-function renderWeek(week){const fragment=weekTemplate.content.cloneNode(true),panel=fragment.querySelector(".week-panel"),toggle=fragment.querySelector("[data-week-toggle]"),content=fragment.querySelector("[data-week-content]"),day=selectedDays[week];fragment.querySelector("[data-week-number]").textContent=week;fragment.querySelector("[data-week-count]").textContent=`${completedInWeek(week)}/35`;const expanded=week===openWeek;toggle.setAttribute("aria-expanded",String(expanded));content.hidden=!expanded;panel.classList.toggle("is-open",expanded);toggle.addEventListener("click",()=>{openWeek=expanded?0:week;render()});if(expanded){const tabs=fragment.querySelector("[data-day-tabs]");DAYS.forEach((name,index)=>{const button=document.createElement("button");button.type="button";button.className="day-tab";button.setAttribute("role","tab");button.setAttribute("aria-selected",String(day===index));button.innerHTML=`<span>${name.slice(0,3)}</span><small>${completedOnDay(week,index)}/5 done</small>`;if(day===index)button.classList.add("is-selected");button.addEventListener("click",()=>{selectedDays[week]=index;render()});tabs.append(button)});fragment.querySelector("[data-selected-day]").textContent=DAYS[day];fragment.querySelector("[data-workout-heading]").textContent=`Workouts for ${DAYS[day]}`;const rows=fragment.querySelector("[data-program-rows]");programs.forEach((program,index)=>rows.append(buildProgramRow(program,index,week,day)))}weekList.append(fragment)}
-function buildProgramRow(program,index,week,day){const fragment=rowTemplate.content.cloneNode(true),select=fragment.querySelector("[data-workout-select]"),box=fragment.querySelector("[data-complete]"),key=selectionKey(program,week,day),doneKey=completionKey(program,week,day);fragment.querySelector("[data-program-number]").textContent=index+1;fragment.querySelector("[data-program-name]").textContent=program.name;workoutOptions[program.id].forEach(name=>select.add(new Option(name,name)));select.value=validSelection(program,state.selections[key]);select.setAttribute("aria-label",`${program.name} workout for ${DAYS[day]}`);updatePill(fragment.querySelector("[data-level]"),program,select.value);select.addEventListener("change",()=>{if(select.value)state.selections[key]=select.value;else delete state.selections[key];if(!select.value)delete state.completed[doneKey];updateLevelFromWorkout(program,select.value);saveState();render()});box.checked=Boolean(state.completed[doneKey]);box.disabled=!select.value;fragment.querySelector("[data-complete-label]").textContent=`Mark ${program.name} complete for ${DAYS[day]}`;box.addEventListener("change",()=>{if(box.checked)state.completed[doneKey]=true;else delete state.completed[doneKey];saveState();render()});return fragment}
-function validSelection(program,value){return workoutOptions[program.id].includes(value)?value:""}function updatePill(pill,program,value){if(!program.levels||!value){pill.hidden=true;return}const level=LEVELS.find(item=>value.toLowerCase().includes(item));if(level){pill.hidden=false;pill.textContent=title(level)}}function updateLevelFromWorkout(program,value){if(!program.levels)return;const level=LEVELS.find(item=>value.toLowerCase().includes(item));if(level)state.levels[program.id]=level}
-function selectionKey(program,week,day){return`${program.id}:week-${week}:day-${day}`}function completionKey(program,week,day){return selectionKey(program,week,day)}function completedOnDay(week,day){return programs.filter(program=>state.completed[completionKey(program,week,day)]).length}function completedInWeek(week){return DAYS.reduce((sum,_,day)=>sum+completedOnDay(week,day),0)}function updateWeekSummary(){const week=openWeek||cycleWeek(new Date());$("#weekCompleted").textContent=completedInWeek(week)}function cycleWeek(date){if(date<PLAN_START)return 1;const days=Math.floor((date-PLAN_START)/86400000);return Math.min(PLAN_WEEKS,Math.floor(days/7)+1)}function defaultDayForWeek(week){const now=new Date();return week===cycleWeek(now)?now.getDay():0}function title(value){return value.charAt(0).toUpperCase()+value.slice(1)}
-function saveState(){state.updatedAt=new Date().toISOString();localStorage.setItem(STORAGE_KEY,JSON.stringify(state));if(!CLOUD_ENABLED)return;clearTimeout(saveTimer);saveTimer=setTimeout(saveCloudState,500)}
-function loadCloudState(force){if(!CLOUD_ENABLED){syncStatus.textContent="Progress is saved on this device.";syncNow.hidden=true;return}syncStatus.textContent=force?"Refreshing…":"Loading synced progress…";syncNow.disabled=true;const callback=`kinetoLoad_${Date.now()}`,script=document.createElement("script"),url=new URL(CLOUD_URL);url.searchParams.set("action","load");url.searchParams.set("callback",callback);url.searchParams.set("_",Date.now());if(CLOUD_TOKEN)url.searchParams.set("token",CLOUD_TOKEN);const cleanup=()=>{delete window[callback];script.remove();syncNow.disabled=false};window[callback]=response=>{cleanup();if(!response?.ok){syncStatus.textContent="Sync unavailable. Progress is saved on this device.";return}const cloud=normalizeState(response.state);if((Date.parse(cloud.updatedAt)||0)>(Date.parse(state.updatedAt)||0)){state=cloud;localStorage.setItem(STORAGE_KEY,JSON.stringify(state));render();syncStatus.textContent="Progress synced."}else saveCloudState()};script.onerror=()=>{cleanup();syncStatus.textContent="Sync unavailable. Progress is saved on this device."};script.src=url;document.body.append(script)}
-function saveCloudState(){if(!CLOUD_ENABLED)return;syncStatus.textContent="Saving…";const name="kinetoSyncFrame";let frame=document.querySelector(`iframe[name="${name}"]`);if(!frame){frame=document.createElement("iframe");frame.name=name;frame.hidden=true;document.body.append(frame)}const form=document.createElement("form");form.method="POST";form.action=CLOUD_URL;form.target=name;form.hidden=true;addField(form,"payload",JSON.stringify({appVersion:APP_VERSION,state}));if(CLOUD_TOKEN)addField(form,"token",CLOUD_TOKEN);document.body.append(form);form.submit();form.remove();setTimeout(()=>syncStatus.textContent="Progress synced.",700)}function addField(form,name,value){const input=document.createElement("input");input.type="hidden";input.name=name;input.value=value;form.append(input)}
+import { PROGRAMS, WORKOUTS } from "./src/catalog.js";
+import { cycleWeek } from "./src/dates.js";
+import { createStateStore } from "./src/storage.js";
+import { createCloudSync } from "./src/sync.js";
+import { createTrackerView } from "./src/ui.js";
+
+const syncStatus = document.querySelector("#syncStatus");
+const syncButton = document.querySelector("#syncNow");
+const app = { trackerView: null };
+
+const store = createStateStore({
+  programs: PROGRAMS,
+  workouts: WORKOUTS,
+  onChange: () => app.trackerView?.render(),
+});
+
+const cloudSync = createCloudSync({
+  config: window.FLEX_TRACKER_CONFIG || {},
+  getState: store.get,
+  replaceState: store.replace,
+  onStatus: updateSyncStatus,
+});
+
+app.trackerView = createTrackerView({
+  programs: PROGRAMS,
+  workouts: WORKOUTS,
+  store,
+  onStateChanged: cloudSync.scheduleSave,
+  initialWeek: cycleWeek(new Date()),
+});
+
+document.querySelector("#resetProgress").addEventListener("click", () => {
+  const confirmed = window.confirm(
+    "Reset all Kineto workout choices and progress?",
+  );
+  if (!confirmed) return;
+  store.reset();
+  cloudSync.scheduleSave();
+});
+
+syncButton.addEventListener("click", () => cloudSync.load(true));
+app.trackerView.render();
+cloudSync.load();
+
+function updateSyncStatus(message, options = {}) {
+  if (message) syncStatus.textContent = message;
+  syncButton.disabled = Boolean(options.disabled);
+  syncButton.hidden = Boolean(options.hideButton);
+}

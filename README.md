@@ -1,17 +1,64 @@
 # Kineto
 
-A unified ballet conditioning tracker for five daily programs, in this order:
+Kineto is an eight-week ballet conditioning tracker for Flexibility, Turnout,
+Pirouette, Foot & Ankle, and Backbend.
 
-1. Flexibility (Beginner, Intermediate, or Advanced)
-2. Turnout
-3. Pirouette
-4. Foot & Ankle
-5. Backbend (Beginner, Intermediate, or Advanced)
+Live app: <https://selena-ec.github.io/kineto/>
 
-The app intentionally contains no session notes, weekly notes, or History view. Progress is stored locally and can sync to the existing Google Sheet through the Apps Script backend.
+## How tracking works
 
-## Publish
+Every assignment is stored independently by program, week, and weekday. New days
+start without an assigned workout. A completion can only be recorded after a
+workout is selected.
 
-The intended GitHub Pages URL is `https://selena-ec.github.io/kineto/`. Rename the GitHub repository to `kineto`, keep Pages configured for the default branch, and deploy the updated Apps Script code. The old `/beginner/` path redirects to the unified app.
+Progress is saved immediately in the browser and then sent to the Google Apps
+Script backend. The **Sync now** action retrieves the newest cloud copy.
 
-Before using the new app, run `resetForKineto` once in Apps Script. This clears old tracker data while preserving sheet tabs and header rows. The first save also performs this cleanup automatically if it has not already run.
+## Project structure
+
+```text
+app.js                 Application bootstrap
+src/catalog.js         Program and workout catalogue
+src/dates.js           Week and weekday calculations
+src/state.js           State schema, validation, and migration
+src/storage.js         Browser persistence
+src/sync.js            Google Sheets synchronization
+src/ui.js              Tracker rendering and interactions
+index.html             Accessible application markup and templates
+styles.css             Responsive visual system
+google-apps-script.gs  Google Sheets backend source
+tests/                 Behavioral and repository tests
+```
+
+The legacy `/beginner/` URL contains only a redirect to the unified app.
+
+## Local development
+
+```bash
+npm install
+npm run dev
+```
+
+Before publishing, run:
+
+```bash
+npm run check
+```
+
+This verifies formatting, lint rules, state migrations, workout catalogue
+contents, date calculations, and key repository requirements.
+
+## Deployment
+
+GitHub Pages publishes the default branch. A separate quality workflow checks
+every proposed change and push.
+
+Changes to `google-apps-script.gs` are not deployed by GitHub Pages. Follow
+`google-sheets-backend-setup.md` when that file changes.
+
+## Storage limitations
+
+The current static-site backend uses last-write-wins synchronization. Avoid
+editing progress simultaneously on multiple devices. The public Apps Script URL
+and any token included in browser configuration must not be treated as secure
+authentication.
